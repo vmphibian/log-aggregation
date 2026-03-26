@@ -18,5 +18,4 @@ galaxy_info:
 dependencies: []
 
 collections:
-  - name: containers.podman
-    version: ">=1.10"
+  - containers.podman

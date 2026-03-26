@@ -1,6 +1,12 @@
 ---
 # yamllint configuration
 # https://yamllint.readthedocs.io/en/stable/configuration.html
+#
+# These settings are kept compatible with ansible-lint's yamllint requirements:
+#   comments.min-spaces-from-content: 1
+#   braces.max-spaces-inside: 1
+#   octal-values.forbid-implicit-octal: true
+#   octal-values.forbid-explicit-octal: true
 
 extends: default
 
@@ -14,10 +20,22 @@ rules:
     allowed-values: ["true", "false", "yes", "no"]
     level: warning
 
-  # Ansible files conventionally omit the document-start marker (---)
-  # We require it everywhere for consistency, but GitHub Actions workflow files
-  # use 'on:' which yamllint may flag — handled by the truthy rule above.
+  # Require document-start marker (---) in all YAML files.
+  # ansible-lint enforces this requirement via the yaml[document-start] rule.
   document-start:
-    present: false
+    present: true
+
+  # ansible-lint requires at least one space between content and inline comment.
+  comments:
+    min-spaces-from-content: 1
+
+  # ansible-lint requires max-spaces-inside: 1 for braces.
+  braces:
+    max-spaces-inside: 1
+
+  # ansible-lint requires implicit and explicit octal values to be forbidden.
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
 
   comments-indentation: disable

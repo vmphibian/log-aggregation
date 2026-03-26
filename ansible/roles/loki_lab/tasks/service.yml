@@ -1,7 +1,7 @@
 ---
 # service.yml — enable and start the Loki instance, then wait for readiness.
 
-- name: Enable and start loki@{{ loki_instance_name }}.service
+- name: "Enable and start Loki service: {{ loki_instance_name }}"
   ansible.builtin.systemd:
     name: "loki@{{ loki_instance_name }}.service"
     state: started

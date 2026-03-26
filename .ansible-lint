@@ -16,4 +16,10 @@ warn_list:
   - role-name
 
 # Skip rules that conflict with intentional design decisions
-skip_list: []
+skip_list:
+  # Variable names follow the loki_ product prefix convention per the project
+  # specification. The loki_lab_ role-prefix requirement conflicts with the
+  # deliberately short names documented in the variable reference table.
+  # Register variables use _ prefix (e.g. _loki_ready) — internal-only,
+  # not part of the public role interface.
+  - var-naming[no-role-prefix]
