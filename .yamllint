@@ -20,8 +20,4 @@ rules:
   document-start:
     present: false
 
-  # Allow comments without a space requirement for inline directives
-  comments:
-    min-spaces-before-comment: 1
-
   comments-indentation: disable

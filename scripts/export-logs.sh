@@ -84,7 +84,7 @@ fi
 ENTRY_COUNT=0
 CURRENT_START="${START_NS}"
 
-> "${OUTPUT_FILE}"  # create/truncate output file
+true > "${OUTPUT_FILE}"  # create/truncate output file
 
 while true; do
   RESPONSE=$(curl -sf "${BASE_URL}/loki/api/v1/query_range" \

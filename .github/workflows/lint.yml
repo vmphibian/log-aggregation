@@ -68,23 +68,19 @@ jobs:
 
       - name: Validate Quadlet unit syntax
         # /usr/libexec/podman/quadlet is the systemd generator binary.
-        # In Podman 4.x, it reads from XDG_CONFIG_HOME/containers/systemd/.
-        # We place the unit there and run -dryrun to validate without writing
-        # any output files. A non-zero exit indicates a syntax error.
-        # Note: "No files parsed from" warnings on stderr are expected when
-        # the unit file is otherwise valid — they indicate empty search dirs,
-        # not errors. We treat stderr output as informational only.
+        # It reads from XDG_CONFIG_HOME/containers/systemd/ (Podman 4.x+).
+        # We set XDG_CONFIG_HOME explicitly so the generator finds the unit on
+        # all runner configurations, then run -dryrun to validate without
+        # writing output files.
+        #
+        # Informational messages like "Error occurred resolving path" for
+        # missing system dirs are expected and benign — we ignore them by
+        # checking the generator exit code only, not grepping stderr text.
         run: |
-          mkdir -p "$HOME/.config/containers/systemd"
-          cp quadlet/loki@.container "$HOME/.config/containers/systemd/"
-          /usr/libexec/podman/quadlet -dryrun 2>&1 \
-            | tee /tmp/quadlet-output.txt
-          # Fail if quadlet reported a fatal error (exit code from tee preserves quadlet's)
-          # The generator exits 0 on success; grep for "error" lines as belt-and-suspenders.
-          if grep -qi "error" /tmp/quadlet-output.txt; then
-            echo "Quadlet reported errors — see output above."
-            exit 1
-          fi
+          export XDG_CONFIG_HOME="/tmp/quadlet-xdg"
+          mkdir -p "${XDG_CONFIG_HOME}/containers/systemd"
+          cp quadlet/loki@.container "${XDG_CONFIG_HOME}/containers/systemd/"
+          /usr/libexec/podman/quadlet -dryrun
           echo "Quadlet syntax OK."
 
   yaml-lint:
