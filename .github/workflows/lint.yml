@@ -1,0 +1,106 @@
+---
+name: Lint
+
+on:  # yamllint disable-line rule:truthy
+  push:
+  pull_request:
+
+jobs:
+  ansible-lint:
+    name: ansible-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-lint-${{ hashFiles('**/requirements*.txt') }}-${{ runner.os }}
+          restore-keys: pip-lint-
+
+      - name: Cache ansible-galaxy collections
+        uses: actions/cache@v4
+        with:
+          path: ~/.ansible/collections
+          key: galaxy-${{ hashFiles('molecule/default/requirements.yml') }}-${{ runner.os }}
+          restore-keys: galaxy-
+
+      - name: Install ansible-lint and dependencies
+        run: |
+          pip install ansible-lint ansible-core
+          ansible-galaxy collection install containers.podman
+
+      - name: Run ansible-lint
+        run: ansible-lint ansible/
+
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck on deploy.sh
+        run: shellcheck --severity=warning --shell=bash scripts/deploy.sh
+
+      - name: Run shellcheck on export-logs.sh
+        run: shellcheck --severity=warning --shell=bash scripts/export-logs.sh
+
+  quadlet-syntax:
+    name: quadlet-syntax
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify Podman version
+        run: podman --version
+
+      - name: Validate Quadlet unit syntax
+        # /usr/libexec/podman/quadlet is the systemd generator binary.
+        # In Podman 4.x, it reads from XDG_CONFIG_HOME/containers/systemd/.
+        # We place the unit there and run -dryrun to validate without writing
+        # any output files. A non-zero exit indicates a syntax error.
+        # Note: "No files parsed from" warnings on stderr are expected when
+        # the unit file is otherwise valid — they indicate empty search dirs,
+        # not errors. We treat stderr output as informational only.
+        run: |
+          mkdir -p "$HOME/.config/containers/systemd"
+          cp quadlet/loki@.container "$HOME/.config/containers/systemd/"
+          /usr/libexec/podman/quadlet -dryrun 2>&1 \
+            | tee /tmp/quadlet-output.txt
+          # Fail if quadlet reported a fatal error (exit code from tee preserves quadlet's)
+          # The generator exits 0 on success; grep for "error" lines as belt-and-suspenders.
+          if grep -qi "error" /tmp/quadlet-output.txt; then
+            echo "Quadlet reported errors — see output above."
+            exit 1
+          fi
+          echo "Quadlet syntax OK."
+
+  yaml-lint:
+    name: yaml-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Run yamllint
+        run: yamllint .

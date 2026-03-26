@@ -1,0 +1,119 @@
+---
+# verify.yml — Assert correctness of the deployed Loki instance.
+#
+# TLS note: All HTTP calls use plain HTTP to localhost. Traefik is not present
+# in the Molecule environment. TLS termination is Traefik's responsibility and
+# is not tested here. This is correct and expected.
+
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Wait for Loki readiness (plain HTTP to localhost)
+      ansible.builtin.uri:
+        url: "http://localhost:3100/ready"
+        method: GET
+        status_code: 200
+      register: _ready
+      retries: 15
+      delay: 2
+      until: _ready.status == 200
+
+    - name: Assert Loki container is running
+      ansible.builtin.command:
+        cmd: podman ps --format "{{ '{{' }}.Names{{ '}}' }}"
+      register: _podman_ps
+      changed_when: false
+
+    - name: Verify container named loki-molecule-test exists
+      ansible.builtin.assert:
+        that:
+          - "'loki-molecule-test' in _podman_ps.stdout"
+        fail_msg: "Container 'loki-molecule-test' not found in podman ps output."
+
+    - name: Inspect container for Traefik labels
+      ansible.builtin.command:
+        cmd: podman inspect loki-molecule-test --format json
+      register: _inspect
+      changed_when: false
+
+    - name: Parse container inspect output
+      ansible.builtin.set_fact:
+        _labels: "{{ (_inspect.stdout | from_json)[0]['Config']['Labels'] }}"
+
+    - name: Assert traefik.enable=true label is present
+      ansible.builtin.assert:
+        that:
+          - "_labels['traefik.enable'] == 'true'"
+        fail_msg: "Label traefik.enable=true not found on container."
+
+    - name: Assert Traefik router rule label is correct
+      ansible.builtin.assert:
+        that:
+          - "_labels['traefik.http.routers.loki-molecule-test.rule'] == \"Host(`molecule-test.loki.test.internal`)\""
+        fail_msg: "Traefik router rule label is incorrect or missing."
+
+    - name: Assert Traefik entrypoints=websecure label is present
+      ansible.builtin.assert:
+        that:
+          - "_labels['traefik.http.routers.loki-molecule-test.entrypoints'] == 'websecure'"
+        fail_msg: "Traefik entrypoints label is incorrect or missing."
+
+    - name: Assert Traefik tls=true label is present
+      ansible.builtin.assert:
+        that:
+          - "_labels['traefik.http.routers.loki-molecule-test.tls'] == 'true'"
+        fail_msg: "Traefik tls label is incorrect or missing."
+
+    - name: Assert Traefik loadbalancer port label is correct
+      ansible.builtin.assert:
+        that:
+          - "_labels['traefik.http.services.loki-molecule-test.loadbalancer.server.port'] == '3100'"
+        fail_msg: "Traefik loadbalancer port label is incorrect or missing."
+
+    - name: Push a test log entry (plain HTTP to localhost — not via Traefik)
+      ansible.builtin.uri:
+        url: "http://localhost:3100/loki/api/v1/push"
+        method: POST
+        body_format: json
+        body:
+          streams:
+            - stream:
+                job: "molecule-verify"
+                instance: "molecule-test"
+              values:
+                - - "{{ (ansible_date_time.epoch | int * 1000000000) | string }}"
+                  - "Molecule verification test log entry"
+        status_code: 204
+      register: _push
+
+    - name: Assert log push returned 204
+      ansible.builtin.assert:
+        that:
+          - _push.status == 204
+        fail_msg: "Log push to Loki returned {{ _push.status }}, expected 204."
+
+    - name: Wait briefly for log ingestion
+      ansible.builtin.pause:
+        seconds: 3
+
+    - name: Query log entry via query_range (plain HTTP to localhost)
+      ansible.builtin.uri:
+        url: "http://localhost:3100/loki/api/v1/query_range"
+        method: GET
+        # nanosecond epoch timestamps — required by Loki query_range API
+        body_format: form-urlencoded
+        body:
+          query: '{job="molecule-verify",instance="molecule-test"}'
+          start: "{{ ((ansible_date_time.epoch | int - 60) * 1000000000) | string }}"
+          end: "{{ ((ansible_date_time.epoch | int + 60) * 1000000000) | string }}"
+          limit: "10"
+        status_code: 200
+      register: _query
+
+    - name: Assert queried log entry is returned
+      ansible.builtin.assert:
+        that:
+          - _query.json.data.result | length > 0
+          - _query.json.data.result[0].values | length > 0
+        fail_msg: "Pushed log entry was not returned by query_range."

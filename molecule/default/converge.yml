@@ -1,0 +1,14 @@
+---
+# converge.yml — Apply the loki_lab role to the Molecule test instance.
+# Uses local storage backend. S3 backend requires a live s3fs mount — not tested in CI.
+
+- name: Converge
+  hosts: all
+  gather_facts: true
+  roles:
+    - role: loki_lab
+      vars:
+        loki_instance_name: "molecule-test"
+        loki_storage_backend: "local"
+        loki_traefik_domain: "test.internal"
+        loki_retention_period: "1h"

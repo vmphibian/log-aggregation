@@ -1,0 +1,41 @@
+---
+# Example playbook for deploying a Loki lab instance.
+# Adjust the inventory group, variables, and connection settings for your environment.
+#
+# Usage:
+#   ansible-playbook -i inventory ansible/deploy-loki.yml
+#
+# Prerequisites:
+#   ansible-galaxy collection install containers.podman
+#
+# The target host must have:
+#   - Rootless Podman installed (podman >= 4.4)
+#   - systemd user session enabled (loginctl enable-linger <user>)
+#   - Traefik running and label-based routing configured (external to this project)
+#
+# For s3 backend, uncomment the s3 example below. Ensure s3fs is mounted at
+# loki_s3_mount_path before running the playbook.
+
+- name: Deploy Loki lab instance
+  hosts: loki_hosts
+  gather_facts: true
+  roles:
+    - role: loki_lab
+      vars:
+        loki_instance_name: "lab-42"
+        loki_storage_backend: "local"
+        loki_traefik_domain: "example.internal"
+        loki_retention_period: "168h"
+
+# S3 backend example (uncomment and adjust):
+# - name: Deploy Loki lab instance with S3 storage
+#   hosts: loki_hosts
+#   gather_facts: true
+#   roles:
+#     - role: loki_lab
+#       vars:
+#         loki_instance_name: "lab-s3-01"
+#         loki_storage_backend: "s3"
+#         loki_s3_mount_path: "/mnt/loki-s3"   # must be a live s3fs mountpoint
+#         loki_traefik_domain: "example.internal"
+#         loki_retention_period: "720h"         # 30 days

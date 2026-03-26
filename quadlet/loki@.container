@@ -1,0 +1,41 @@
+# Static reference copy of the Quadlet unit template.
+# This file is the rendered output with all Jinja2 variables substituted to
+# their DEFAULT values. It serves as:
+#   1. A syntax validation target for CI (quadlet-syntax job in lint.yml).
+#   2. A human-readable reference for operators who want to understand the
+#      unit structure without running Ansible.
+#
+# IMPORTANT: This file is NOT authoritative for deployments. The Ansible role
+# renders the actual unit from templates/loki@.container.j2. Keep both in sync.
+#
+# TLS NOTE: Loki listens on plain HTTP only. TLS is terminated at Traefik.
+# Do not add TLS configuration to this unit.
+
+[Unit]
+Description=Loki log aggregation instance %i
+After=network-online.target
+
+[Container]
+Image=docker.io/grafana/loki:3.5.0
+ContainerName=loki-%i
+
+Volume=loki-%i:/loki:Z
+Volume=%h/.config/loki/%i/loki.yaml:/etc/loki/loki.yaml:ro,Z
+
+PublishPort=127.0.0.1:3100:3100
+PublishPort=127.0.0.1:9095:9095
+
+Exec=-config.file=/etc/loki/loki.yaml
+
+Label=traefik.enable=true
+Label=traefik.http.routers.loki-%i.rule=Host(`%i.loki.example.internal`)
+Label=traefik.http.routers.loki-%i.entrypoints=websecure
+Label=traefik.http.routers.loki-%i.tls=true
+Label=traefik.http.services.loki-%i.loadbalancer.server.port=3100
+
+[Service]
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

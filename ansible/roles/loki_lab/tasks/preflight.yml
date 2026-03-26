@@ -1,0 +1,72 @@
+---
+# preflight.yml — all validation before any state-changing task runs.
+# Any failure here aborts the play before touching the target host.
+
+- name: Assert loki_instance_name is defined
+  ansible.builtin.assert:
+    that:
+      - loki_instance_name is defined
+      - loki_instance_name | length > 0
+    fail_msg: >
+      loki_instance_name is required and must not be empty.
+      Example: loki_instance_name: "lab-42"
+
+- name: Assert loki_instance_name matches naming convention
+  ansible.builtin.assert:
+    that:
+      - loki_instance_name is match('^[a-z0-9][a-z0-9-]*[a-z0-9]$')
+    fail_msg: >
+      loki_instance_name "{{ loki_instance_name }}" is invalid.
+      Must match ^[a-z0-9][a-z0-9-]*[a-z0-9]$ (lowercase alphanumeric and hyphens,
+      no leading or trailing hyphen, minimum two characters).
+      Example: "lab-42", "dev-loki-01"
+
+- name: Assert loki_storage_backend is valid
+  ansible.builtin.assert:
+    that:
+      - loki_storage_backend in ['local', 's3']
+    fail_msg: >
+      loki_storage_backend must be "local" or "s3", got "{{ loki_storage_backend }}".
+
+- name: Assert loki_traefik_domain is defined and non-empty
+  ansible.builtin.assert:
+    that:
+      - loki_traefik_domain is defined
+      - loki_traefik_domain | length > 0
+    fail_msg: >
+      loki_traefik_domain is required. Example: loki_traefik_domain: "example.internal"
+
+- name: Assert loki_s3_mount_path is defined (s3 backend only)
+  ansible.builtin.assert:
+    that:
+      - loki_s3_mount_path is defined
+      - loki_s3_mount_path | length > 0
+    fail_msg: >
+      loki_s3_mount_path is required when loki_storage_backend is "s3".
+      It must be the absolute path where s3fs has mounted the S3 bucket.
+  when: loki_storage_backend == 's3'
+
+- name: Check s3fs mountpoint exists and is a mountpoint (s3 backend only)
+  ansible.builtin.stat:
+    path: "{{ loki_s3_mount_path }}"
+  register: _s3_mount_stat
+  when: loki_storage_backend == 's3'
+
+- name: Assert s3fs mountpoint is valid (s3 backend only)
+  ansible.builtin.assert:
+    that:
+      - _s3_mount_stat.stat.exists
+      - _s3_mount_stat.stat.ismount
+    fail_msg: >
+      loki_s3_mount_path "{{ loki_s3_mount_path }}" is not a mountpoint.
+      Ensure s3fs is mounted before running this role.
+      Command to verify: mountpoint -q {{ loki_s3_mount_path }}
+  when: loki_storage_backend == 's3'
+
+- name: Assert the role is not running as root
+  ansible.builtin.assert:
+    that:
+      - ansible_user_id != 'root'
+    fail_msg: >
+      This role must run as a non-root user. Rootless Podman requires a regular
+      user account. Re-run without become: true or switch to a non-root user.

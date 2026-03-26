@@ -1,0 +1,25 @@
+---
+# cleanup.yml — Tear down the Molecule test instance cleanly.
+
+- name: Cleanup
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Stop loki@molecule-test.service
+      ansible.builtin.systemd:
+        name: "loki@molecule-test.service"
+        state: stopped
+        scope: user
+      failed_when: false
+
+    - name: Remove Podman volume loki-molecule-test
+      containers.podman.podman_volume:
+        name: "loki-molecule-test"
+        state: absent
+      failed_when: false
+
+    - name: Remove rendered config directory
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/.config/loki/molecule-test"
+        state: absent
+      failed_when: false

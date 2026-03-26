@@ -1,0 +1,20 @@
+---
+- name: Preflight checks
+  ansible.builtin.import_tasks: preflight.yml
+  tags: [preflight]
+
+- name: Manage Podman volume
+  ansible.builtin.import_tasks: volume.yml
+  tags: [volume]
+
+- name: Render Loki configuration
+  ansible.builtin.import_tasks: config.yml
+  tags: [config]
+
+- name: Install Quadlet unit template
+  ansible.builtin.import_tasks: quadlet.yml
+  tags: [quadlet]
+
+- name: Enable and start service
+  ansible.builtin.import_tasks: service.yml
+  tags: [service]

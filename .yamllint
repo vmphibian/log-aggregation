@@ -1,0 +1,27 @@
+---
+# yamllint configuration
+# https://yamllint.readthedocs.io/en/stable/configuration.html
+
+extends: default
+
+rules:
+  line-length:
+    max: 160
+    level: warning
+
+  # Allow both true/false (Ansible convention) and yes/no (YAML default)
+  truthy:
+    allowed-values: ["true", "false", "yes", "no"]
+    level: warning
+
+  # Ansible files conventionally omit the document-start marker (---)
+  # We require it everywhere for consistency, but GitHub Actions workflow files
+  # use 'on:' which yamllint may flag — handled by the truthy rule above.
+  document-start:
+    present: false
+
+  # Allow comments without a space requirement for inline directives
+  comments:
+    min-spaces-before-comment: 1
+
+  comments-indentation: disable

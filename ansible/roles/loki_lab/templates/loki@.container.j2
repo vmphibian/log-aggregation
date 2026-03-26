@@ -1,0 +1,54 @@
+# Quadlet container unit template for Loki lab instances.
+# Rendered by Ansible from templates/loki@.container.j2
+#
+# This is a SHARED TEMPLATE UNIT. One file serves all instances via systemd's
+# instantiated unit pattern. The %i specifier is substituted by systemd with
+# the instance name at runtime (e.g. loki@lab-42.service → %i = "lab-42").
+#
+# Jinja2 substitutes only host-wide constants at render time:
+#   {{ loki_http_port }}, {{ loki_grpc_port }}, {{ loki_traefik_domain }},
+#   {{ loki_image }}, {{ loki_config_dir_base }}
+# All %i references remain LITERAL in the rendered file — systemd resolves them.
+#
+# Podman compatibility: Podman 4.4+ (RHEL 9 target). Do not use Quadlet
+# features introduced after Podman 4.4 without a compatibility note in README.md.
+#
+# TLS NOTE: Loki listens on plain HTTP only. TLS is terminated at Traefik.
+# Do not add TLS configuration to this unit.
+
+[Unit]
+Description=Loki log aggregation instance %i
+After=network-online.target
+
+[Container]
+Image={{ loki_image }}
+ContainerName=loki-%i
+
+# Named Podman volume for log storage (local or s3 bind-mount, see volume.yml).
+Volume=loki-%i:/loki:Z
+# Per-instance rendered config file (read-only inside the container).
+Volume={{ loki_config_dir_base }}/%i/loki.yaml:/etc/loki/loki.yaml:ro,Z
+
+# Ports bound to localhost only — Traefik reaches Loki over plain HTTP on
+# loki_http_port. External traffic must never reach these ports directly.
+PublishPort=127.0.0.1:{{ loki_http_port }}:3100
+PublishPort=127.0.0.1:{{ loki_grpc_port }}:9095
+
+Exec=-config.file=/etc/loki/loki.yaml
+
+# Traefik routing labels — subdomain per instance, TLS terminated at Traefik.
+# Router and service names include %i to prevent label collisions across instances.
+# loadbalancer.server.port=3100 is the container-internal HTTP port — Traefik
+# communicates with Loki over plain HTTP, not TLS.
+Label=traefik.enable=true
+Label=traefik.http.routers.loki-%i.rule=Host(`%i.loki.{{ loki_traefik_domain }}`)
+Label=traefik.http.routers.loki-%i.entrypoints=websecure
+Label=traefik.http.routers.loki-%i.tls=true
+Label=traefik.http.services.loki-%i.loadbalancer.server.port=3100
+
+[Service]
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

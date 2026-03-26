@@ -1,0 +1,19 @@
+---
+# quadlet.yml — install the shared Quadlet instantiated unit template.
+# The template file is shared across all instances; %i is substituted by
+# systemd at runtime to produce per-instance unit names (loki@<name>.service).
+
+- name: Ensure Quadlet directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/.config/containers/systemd"
+    state: directory
+    mode: "0750"
+
+- name: Render Quadlet unit template
+  ansible.builtin.template:
+    src: loki@.container.j2
+    dest: "{{ ansible_user_dir }}/.config/containers/systemd/loki@.container"
+    mode: "0640"
+  # changed_when is driven by the template diff (default template module behaviour).
+  # A second instance deployment will not report changed if the file is identical.
+  notify: systemd daemon-reload (user)

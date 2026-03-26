@@ -1,0 +1,97 @@
+# Loki configuration — monolithic mode
+# Rendered by Ansible from templates/loki.yaml.j2
+# Instance: {{ loki_instance_name }}
+#
+# TLS NOTE: This file contains NO TLS configuration. Loki listens on plain
+# HTTP only. TLS is terminated exclusively at Traefik. Do not add TLS
+# certificates, HTTPS listeners, or tls: blocks to this file.
+
+auth_enabled: false
+
+# Loki runs in monolithic mode — all components in a single process.
+target: all
+
+server:
+  # Plain HTTP listener only. Do not configure TLS here.
+  # Traefik → Loki communication happens over this port via plain HTTP.
+  # External clients reach Loki via Traefik HTTPS (https://{{ loki_instance_name }}.loki.{{ loki_traefik_domain }}).
+  http_listen_port: 3100
+  # Plain gRPC listener for Alloy push. No TLS.
+  grpc_listen_port: 9095
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      # Both local and s3 backends use filesystem storage inside the container.
+      # For s3, the host s3fs mount is presented to the container as a local volume.
+      # Loki's native S3 client is not used — see docs/storage-backends.md.
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: "2024-01-01"
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config:
+  tsdb_shipper:
+    active_index_directory: /loki/tsdb-index
+    cache_location: /loki/tsdb-cache
+    cache_ttl: 24h
+  filesystem:
+    directory: /loki/chunks
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+
+limits_config:
+  # ── Lab-appropriate ingestion rate limits ──────────────────────────────────
+  # These are intentionally generous for dev/lab use. Tighten for production.
+  # See README.md for documentation on each tunable.
+
+  # Maximum ingestion rate per stream (bytes/sec). 0 = unlimited.
+  # Lab default: 4 MiB/s — sufficient for active development workloads.
+  ingestion_rate_mb: 4
+
+  # Burst size above ingestion_rate_mb (bytes). 0 = no burst.
+  # Lab default: 6 MiB — allows short spikes without throttling.
+  ingestion_burst_size_mb: 6
+
+  # Maximum number of active streams per tenant.
+  # Lab default: 10,000 — handles multiple services with many label combinations.
+  max_streams_per_user: 10000
+
+  # Retention period for this tenant. Overrides global retention if set.
+  # Uses the deployment variable so all tuning is in one place.
+  retention_period: {{ loki_retention_period }}
+
+  # Maximum query time range. Prevents accidental multi-week scans.
+  max_query_length: 721h  # slightly over 30 days
+
+  # Maximum number of entries returned per query.
+  max_entries_limit_per_query: 50000
+
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 100
+
+ruler:
+  alertmanager_url: http://localhost:9093
+
+analytics:
+  reporting_enabled: false

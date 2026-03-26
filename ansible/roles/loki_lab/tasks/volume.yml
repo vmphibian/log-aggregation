@@ -1,0 +1,29 @@
+---
+# volume.yml — idempotent Podman volume management.
+# Uses containers.podman.podman_volume_info to skip creation when volume exists.
+
+- name: Check whether Podman volume already exists
+  containers.podman.podman_volume_info:
+    name: "loki-{{ loki_instance_name }}"
+  register: _volume_info
+  failed_when: false
+
+- name: Create Podman volume (local backend)
+  containers.podman.podman_volume:
+    name: "loki-{{ loki_instance_name }}"
+    state: present
+  when:
+    - loki_storage_backend == 'local'
+    - _volume_info.volumes | default([]) | length == 0
+
+- name: Create Podman volume (s3 backend — bind-mount over s3fs path)
+  containers.podman.podman_volume:
+    name: "loki-{{ loki_instance_name }}"
+    state: present
+    options:
+      - "type=none"
+      - "o=bind"
+      - "device={{ loki_s3_mount_path }}"
+  when:
+    - loki_storage_backend == 's3'
+    - _volume_info.volumes | default([]) | length == 0
