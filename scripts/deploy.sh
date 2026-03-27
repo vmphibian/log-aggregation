@@ -126,7 +126,7 @@ systemctl --user start "${SERVICE}"
 # Direct HTTP call to Loki — do not use the Traefik HTTPS endpoint here.
 # Traefik may not be present in all environments (e.g. development, CI).
 echo "==> Waiting for Loki readiness (http://localhost:${LOKI_HTTP_PORT}/ready)..."
-READY_TIMEOUT=60
+READY_TIMEOUT=180
 ELAPSED=0
 until curl -sf "http://localhost:${LOKI_HTTP_PORT}/ready" -o /dev/null; do
   if [[ ${ELAPSED} -ge ${READY_TIMEOUT} ]]; then
