@@ -5,11 +5,13 @@
   ansible.builtin.file:
     path: "{{ loki_config_dir_base }}/{{ loki_instance_name }}"
     state: directory
-    mode: "0750"
+    # The Loki container runs as a non-root UID, so the bind-mounted config
+    # path must be traversable/readable regardless of host UID/GID mapping.
+    mode: "0755"
 
 - name: Render loki.yaml from template
   ansible.builtin.template:
     src: loki.yaml.j2
     dest: "{{ loki_config_dir_base }}/{{ loki_instance_name }}/loki.yaml"
-    mode: "0640"
+    mode: "0644"
   notify: Restart loki instance

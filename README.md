@@ -64,6 +64,12 @@ bash scripts/deploy.sh
 | `loki_traefik_domain` | `LOKI_TRAEFIK_DOMAIN` | Yes | — | Base domain. Instance reachable at `https://<name>.loki.<domain>` via Traefik. |
 | `loki_image` | `LOKI_IMAGE` | No | `docker.io/grafana/loki:3.5.0` | Fully-qualified image. Never `latest`. |
 | `loki_config_dir_base` | `LOKI_CONFIG_DIR_BASE` | No | `~/.config/loki` | Host base directory for rendered configs. |
+| — | `LOKI_READY_TIMEOUT_SECONDS` | No | `180` | Seconds to wait for the localhost `/ready` probe before dumping diagnostics and failing. |
+
+Rendered `loki.yaml` is intentionally installed with mode `0644` inside a `0755`
+instance directory. The Loki image runs as a non-root UID, and rootless Podman
+bind-mounts the host config file directly into the container. These modes avoid
+UID/GID mapping failures when Loki opens `/etc/loki/loki.yaml`.
 
 ---
 

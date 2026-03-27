@@ -69,7 +69,9 @@ echo "    Traefik domain  : ${LOKI_TRAEFIK_DOMAIN}"
 # ── Config directory ──────────────────────────────────────────────────────────
 CONFIG_DIR="${LOKI_CONFIG_DIR_BASE}/${LOKI_INSTANCE_NAME}"
 mkdir -p "${CONFIG_DIR}"
-chmod 750 "${CONFIG_DIR}"
+# The Loki container runs as a non-root UID, so the bind-mounted config path
+# must be traversable/readable regardless of the host user's UID/GID mapping.
+chmod 755 "${CONFIG_DIR}"
 
 # ── Render loki.yaml ──────────────────────────────────────────────────────────
 echo "==> Rendering Loki configuration..."
@@ -77,7 +79,7 @@ export LOKI_INSTANCE_NAME LOKI_HTTP_PORT LOKI_GRPC_PORT LOKI_RETENTION_PERIOD \
        LOKI_IMAGE LOKI_TRAEFIK_DOMAIN LOKI_CONFIG_DIR_BASE
 
 envsubst < "${REPO_ROOT}/config/loki.yaml.tpl" > "${CONFIG_DIR}/loki.yaml"
-chmod 640 "${CONFIG_DIR}/loki.yaml"
+chmod 644 "${CONFIG_DIR}/loki.yaml"
 echo "    Written: ${CONFIG_DIR}/loki.yaml"
 
 # ── Podman volume ─────────────────────────────────────────────────────────────
