@@ -1,5 +1,5 @@
 ---
-# Molecule scenario using delegated localhost execution.
+# Molecule scenario using localhost execution via Molecule's default driver.
 #
 # This role manages rootless Podman and user-systemd on the host running tests.
 # In GitHub Actions, Podman is available on the ubuntu-latest runner, but not
@@ -16,7 +16,9 @@ dependency:
     requirements-file: molecule/default/requirements.yml
 
 driver:
-  name: delegated
+  # Use Molecule's built-in local driver behavior for localhost scenarios.
+  # This avoids external delegated driver plugin resolution issues in CI.
+  name: default
 
 platforms:
   - name: localhost
