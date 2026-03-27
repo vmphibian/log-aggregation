@@ -1,16 +1,14 @@
 ---
-# Molecule scenario using the Podman driver with ubi9/ubi-init.
+# Molecule scenario using delegated localhost execution.
 #
-# ubi9/ubi-init includes systemd, required for testing user unit management.
+# This role manages rootless Podman and user-systemd on the host running tests.
+# In GitHub Actions, Podman is available on the ubuntu-latest runner, but not
+# inside the ephemeral Molecule test container image.
 #
 # CI Notes (GitHub Actions ubuntu-latest, Podman 4.9.3):
-#   - User systemd units inside a rootless Podman container on the CI runner
-#     require cgroupns_mode: host and systemd: always to function correctly.
 #   - The runner user must have lingering enabled; the test.yml workflow does
 #     this with: loginctl enable-linger $USER
-#   - If user unit testing inside a container proves infeasible on a given
-#     runner, the fallback is the 'delegated' driver with --connection=local.
-#     See README.md "CI Notes" section for runner-specific workarounds.
+#   - XDG_RUNTIME_DIR must be set for rootless Podman.
 
 dependency:
   name: galaxy
@@ -18,21 +16,13 @@ dependency:
     requirements-file: molecule/default/requirements.yml
 
 driver:
-  name: podman
+  name: delegated
 
 platforms:
-  - name: loki-molecule-test
-    image: registry.access.redhat.com/ubi9/ubi-init
-    privileged: false
-    cgroupns_mode: host
-    systemd: always
-    # Required for rootless systemd-in-container on GitHub Actions runners.
-    # Removes the default seccomp profile which blocks some systemd syscalls.
-    security_opts:
-      - seccomp=unconfined
-    volumes:
-      - /sys/fs/cgroup:/sys/fs/cgroup:rw
-    pre_build_image: true
+  - name: localhost
+    managed: false
+    address: localhost
+    connection: local
 
 provisioner:
   name: ansible
