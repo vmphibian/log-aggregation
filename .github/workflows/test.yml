@@ -34,7 +34,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install molecule molecule-podman ansible-core ansible-lint
+          pip install molecule molecule-podman molecule-plugins ansible-core ansible-lint
 
       - name: Install Ansible collections
         run: |

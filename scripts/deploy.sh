@@ -36,6 +36,22 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # ── Validation ────────────────────────────────────────────────────────────────
 error() { echo "ERROR: $*" >&2; exit 1; }
 
+print_loki_failure_diagnostics() {
+  local unit="$1"
+
+  echo "==> systemctl status (${unit})"
+  systemctl --user status "${unit}" --no-pager || true
+
+  echo "==> journalctl (${unit})"
+  journalctl --user -u "${unit}" --no-pager -n 300 || true
+
+  echo "==> podman ps/a"
+  podman ps --all || true
+
+  echo "==> podman logs (best-effort)"
+  podman logs "loki-${LOKI_INSTANCE_NAME}" 2>/dev/null || true
+}
+
 [[ -n "${LOKI_INSTANCE_NAME:-}" ]]   || error "LOKI_INSTANCE_NAME is required."
 [[ -n "${LOKI_STORAGE_BACKEND:-}" ]] || error "LOKI_STORAGE_BACKEND is required."
 [[ -n "${LOKI_TRAEFIK_DOMAIN:-}" ]]  || error "LOKI_TRAEFIK_DOMAIN is required."
@@ -122,7 +138,11 @@ systemctl --user daemon-reload
 # ── Enable and start service ──────────────────────────────────────────────────
 SERVICE="loki@${LOKI_INSTANCE_NAME}.service"
 echo "==> Starting ${SERVICE}..."
-systemctl --user start "${SERVICE}"
+if ! systemctl --user start "${SERVICE}"; then
+  echo "ERROR: Failed to start ${SERVICE}." >&2
+  print_loki_failure_diagnostics "${SERVICE}"
+  exit 1
+fi
 
 # ── Readiness check ───────────────────────────────────────────────────────────
 # Direct HTTP call to Loki — do not use the Traefik HTTPS endpoint here.
@@ -136,18 +156,7 @@ end=$((SECONDS + TIMEOUT))
 until curl -fsS "${READY_URL}" >/dev/null; do
   if (( SECONDS >= end )); then
     echo "ERROR: Loki did not become ready within ${TIMEOUT}s." >&2
-
-    echo "==> systemctl status (${UNIT})"
-    systemctl --user status "${UNIT}" --no-pager || true
-
-    echo "==> journalctl (${UNIT})"
-    journalctl --user -u "${UNIT}" --no-pager -n 300 || true
-
-    echo "==> podman ps/a"
-    podman ps --all || true
-
-    echo "==> podman logs (best-effort)"
-    podman logs "loki-${LOKI_INSTANCE_NAME}" 2>/dev/null || true
+    print_loki_failure_diagnostics "${UNIT}"
 
     exit 1
   fi
