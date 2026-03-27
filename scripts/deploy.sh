@@ -120,7 +120,7 @@ systemctl --user daemon-reload
 # ── Enable and start service ──────────────────────────────────────────────────
 SERVICE="loki@${LOKI_INSTANCE_NAME}.service"
 echo "==> Starting ${SERVICE}..."
-systemctl --user enable --now "${SERVICE}"
+systemctl --user start "${SERVICE}"
 
 # ── Readiness check ───────────────────────────────────────────────────────────
 # Direct HTTP call to Loki — do not use the Traefik HTTPS endpoint here.
