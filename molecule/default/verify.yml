@@ -110,5 +110,5 @@
       ansible.builtin.assert:
         that:
           - _query.json.data.result | length > 0
-          - _query.json.data.result[0].values | length > 0
+          - _query.json.data.result[0]['values'] | length > 0
         fail_msg: "Pushed log entry was not returned by query_range."
