@@ -60,6 +60,7 @@ jobs:
         env:
           PY_COLORS: "1"
           ANSIBLE_FORCE_COLOR: "1"
+          ANSIBLE_ALLOW_BROKEN_CONDITIONALS: "True"
 
   integration:
     name: integration
