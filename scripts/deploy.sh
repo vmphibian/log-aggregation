@@ -125,16 +125,33 @@ systemctl --user start "${SERVICE}"
 # ── Readiness check ───────────────────────────────────────────────────────────
 # Direct HTTP call to Loki — do not use the Traefik HTTPS endpoint here.
 # Traefik may not be present in all environments (e.g. development, CI).
-echo "==> Waiting for Loki readiness (http://localhost:${LOKI_HTTP_PORT}/ready)..."
-READY_TIMEOUT=180
-ELAPSED=0
-until curl -sf "http://localhost:${LOKI_HTTP_PORT}/ready" -o /dev/null; do
-  if [[ ${ELAPSED} -ge ${READY_TIMEOUT} ]]; then
-    error "Loki did not become ready within ${READY_TIMEOUT}s. Check: journalctl --user -u ${SERVICE}"
+READY_URL="http://localhost:${LOKI_HTTP_PORT:-3100}/ready"
+UNIT="${SERVICE}"
+TIMEOUT="${LOKI_READY_TIMEOUT_SECONDS:-180}"
+
+echo "==> Waiting for Loki readiness (${READY_URL})..."
+end=$((SECONDS + TIMEOUT))
+until curl -fsS "${READY_URL}" >/dev/null; do
+  if (( SECONDS >= end )); then
+    echo "ERROR: Loki did not become ready within ${TIMEOUT}s." >&2
+
+    echo "==> systemctl status (${UNIT})"
+    systemctl --user status "${UNIT}" --no-pager || true
+
+    echo "==> journalctl (${UNIT})"
+    journalctl --user -u "${UNIT}" --no-pager -n 300 || true
+
+    echo "==> podman ps/a"
+    podman ps --all || true
+
+    echo "==> podman logs (best-effort)"
+    podman logs "loki-${LOKI_INSTANCE_NAME}" 2>/dev/null || true
+
+    exit 1
   fi
   sleep 2
-  ELAPSED=$((ELAPSED + 2))
 done
+echo "==> Loki is ready."
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
