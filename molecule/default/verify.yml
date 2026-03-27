@@ -6,7 +6,8 @@
 # is not tested here. This is correct and expected.
 
 - name: Verify
-  hosts: all
+  hosts: localhost
+  connection: local
   gather_facts: false
   tasks:
     - name: Wait for Loki readiness (plain HTTP to localhost)

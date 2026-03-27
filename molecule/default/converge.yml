@@ -3,7 +3,8 @@
 # Uses local storage backend. S3 backend requires a live s3fs mount — not tested in CI.
 
 - name: Converge
-  hosts: all
+  hosts: localhost
+  connection: local
   gather_facts: true
   roles:
     - role: loki_lab
