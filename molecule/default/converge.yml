@@ -12,3 +12,4 @@
         loki_storage_backend: "local"
         loki_traefik_domain: "test.internal"
         loki_retention_period: "1h"
+        loki_allow_root_for_testing: true

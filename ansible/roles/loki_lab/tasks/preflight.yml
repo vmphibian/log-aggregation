@@ -70,3 +70,4 @@
     fail_msg: >
       This role must run as a non-root user. Rootless Podman requires a regular
       user account. Re-run without become: true or switch to a non-root user.
+  when: not (loki_allow_root_for_testing | bool)

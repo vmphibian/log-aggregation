@@ -38,3 +38,8 @@ loki_image: "docker.io/grafana/loki:3.5.0"
 # Base directory on the host where rendered Loki configs are stored.
 # Instance config: {{ loki_config_dir_base }}/{{ loki_instance_name }}/loki.yaml
 loki_config_dir_base: "{{ ansible_user_dir }}/.config/loki"
+
+# ── Testing escape hatch ──────────────────────────────────────────────────────
+# Keep strict non-root behavior by default. This can be enabled only in
+# containerized CI tests (e.g. Molecule) where the instance user is root.
+loki_allow_root_for_testing: false
