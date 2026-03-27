@@ -100,12 +100,7 @@
 
     - name: Query log entry via query_range (plain HTTP to localhost)
       ansible.builtin.uri:
-        url: >-
-          http://localhost:3100/loki/api/v1/query_range?
-          query=%7Bjob%3D%22molecule-verify%22%2Cinstance%3D%22molecule-test%22%7D&
-          start={{ ((ansible_date_time.epoch | int - 60) * 1000000000) | string }}&
-          end={{ ((ansible_date_time.epoch | int + 60) * 1000000000) | string }}&
-          limit=10
+        url: "http://localhost:3100/loki/api/v1/query_range?query={{ '{job=\"molecule-verify\",instance=\"molecule-test\"}' | urlencode }}&start={{ ((ansible_date_time.epoch | int - 60) * 1000000000) | string }}&end={{ ((ansible_date_time.epoch | int + 60) * 1000000000) | string }}&limit=10"
         method: GET
         # nanosecond epoch timestamps in query params — required by Loki query_range API
         status_code: 200
