@@ -2,7 +2,8 @@
 # cleanup.yml — Tear down the Molecule test instance cleanly.
 
 - name: Cleanup
-  hosts: all
+  hosts: localhost
+  connection: local
   gather_facts: false
   tasks:
     - name: Stop loki@molecule-test.service
@@ -20,6 +21,6 @@
 
     - name: Remove rendered config directory
       ansible.builtin.file:
-        path: "{{ ansible_user_dir }}/.config/loki/molecule-test"
+        path: "{{ lookup('env', 'HOME') }}/.config/loki/molecule-test"
         state: absent
       failed_when: false
