@@ -27,7 +27,7 @@ jobs:
           GALAXY_SYNC_TOKEN: ${{ secrets.GALAXY_SYNC_TOKEN }}
         run: |
           git clone \
-            "https://x-access-token:${GALAXY_SYNC_TOKEN}@github.com/vmphibian/ansible-role-loki_lab.git" \
+            "https://x-access-token:${GALAXY_SYNC_TOKEN}@github.com/mattgagliardi/ansible-role-loki_lab.git" \
             /tmp/galaxy-target
 
           rsync -av --delete \
