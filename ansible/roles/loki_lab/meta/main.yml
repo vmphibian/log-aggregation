@@ -1,6 +1,6 @@
 ---
 galaxy_info:
-  author: VMphibian
+  author: mattgagliardi
   description: Rootless Podman/Quadlet deployment of Grafana Loki for dev lab environments
   license: MIT
   min_ansible_version: "2.14"
@@ -16,6 +16,3 @@ galaxy_info:
     - monitoring
 
 dependencies: []
-
-collections:
-  - containers.podman
