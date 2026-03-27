@@ -8,7 +8,7 @@
 - name: Verify
   hosts: localhost
   connection: local
-  gather_facts: false
+  gather_facts: true
   tasks:
     - name: Wait for Loki readiness (plain HTTP to localhost)
       ansible.builtin.uri:
