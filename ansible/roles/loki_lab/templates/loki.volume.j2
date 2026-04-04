@@ -1,0 +1,8 @@
+{# Managed by Ansible — loki_lab role. Do not edit manually. #}
+{# Instance: {{ loki_instance_name }} #}
+[Volume]
+{% if loki_storage_backend == 's3' %}
+Device={{ loki_s3_mount_path }}
+Type=none
+Options=bind
+{% endif %}

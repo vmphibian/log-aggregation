@@ -2,15 +2,16 @@
 # loki_lab role defaults
 # All variables here can be overridden in the playbook or inventory.
 
-# ── Required variables (no default — must be supplied) ───────────────────────
-# loki_instance_name: ""      # e.g. "lab-42"  — must match ^[a-z0-9][a-z0-9-]*[a-z0-9]$
-# loki_traefik_domain: ""     # e.g. "example.internal"
-# loki_s3_mount_path: ""      # Required only when loki_storage_backend == 's3'
+# ── Instance name ─────────────────────────────────────────────────────────────
+# Unique identifier for this Loki instance on the target host.
+# Pattern: ^[a-z0-9][a-z0-9-]*[a-z0-9]$  (e.g. "lab-42")
+# Falls back to lab_instance_name if set at the playbook level.
+loki_instance_name: "{{ lab_instance_name | default('') }}"
 
 # ── Storage ───────────────────────────────────────────────────────────────────
 # Which storage backend to use for log data.
-# "local"  — a named Podman volume on the container host (no extra setup).
-# "s3"     — a named Podman volume bind-mounted over an s3fs mountpoint.
+# "local"  — a standard Podman-managed volume (no extra setup).
+# "s3"     — an s3fs-fuse bind-mount via the .volume Quadlet unit.
 #            Requires loki_s3_mount_path to point to a live s3fs mount.
 loki_storage_backend: "local"
 
@@ -38,6 +39,16 @@ loki_image: "docker.io/grafana/loki:3.5.0"
 # Base directory on the host where rendered Loki configs are stored.
 # Instance config: {{ loki_config_dir_base }}/{{ loki_instance_name }}/loki.yaml
 loki_config_dir_base: "{{ ansible_user_dir }}/.config/loki"
+
+# ── Traefik integration ───────────────────────────────────────────────────────
+# Domain used to build the per-instance subdomain routing rule:
+#   Host(`<instance>.loki.<domain>`)
+# Falls back to lab_traefik_domain if set at the playbook level.
+loki_traefik_domain: "{{ lab_traefik_domain | default('') }}"
+
+# Traefik entrypoint name. Must match the TLS entrypoint in your Traefik config.
+# Falls back to lab_traefik_entrypoint if set at the playbook level.
+loki_traefik_entrypoint: "{{ lab_traefik_entrypoint | default('websecure') }}"
 
 # ── Testing escape hatch ──────────────────────────────────────────────────────
 # Keep strict non-root behavior by default. This can be enabled only in

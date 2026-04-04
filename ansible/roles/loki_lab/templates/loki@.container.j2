@@ -7,7 +7,7 @@
 #
 # Jinja2 substitutes only host-wide constants at render time:
 #   {{ loki_http_port }}, {{ loki_grpc_port }}, {{ loki_traefik_domain }},
-#   {{ loki_image }}, {{ loki_config_dir_base }}
+#   {{ loki_traefik_entrypoint }}, {{ loki_image }}, {{ loki_config_dir_base }}
 # All %i references remain LITERAL in the rendered file — systemd resolves them.
 #
 # Podman compatibility: Podman 4.4+ (RHEL 9 target). Do not use Quadlet
@@ -18,14 +18,15 @@
 
 [Unit]
 Description=Loki log aggregation instance %i
-After=network-online.target
+After=network-online.target loki-%i-volume.service
+Requires=loki-%i-volume.service
 
 [Container]
 Image={{ loki_image }}
 ContainerName=loki-%i
 
-# Named Podman volume for log storage (local or s3 bind-mount, see volume.yml).
-Volume=loki-%i:/loki:Z
+# Per-instance Quadlet-managed volume for log storage (local or s3 bind-mount).
+Volume=loki-%i.volume:/loki:Z
 # Per-instance rendered config file (read-only inside the container).
 Volume={{ loki_config_dir_base }}/%i/loki.yaml:/etc/loki/loki.yaml:ro,Z
 
@@ -42,7 +43,7 @@ Exec=-config.file=/etc/loki/loki.yaml
 # communicates with Loki over plain HTTP, not TLS.
 Label=traefik.enable=true
 Label=traefik.http.routers.loki-%i.rule=Host(`%i.loki.{{ loki_traefik_domain }}`)
-Label=traefik.http.routers.loki-%i.entrypoints=websecure
+Label=traefik.http.routers.loki-%i.entrypoints={{ loki_traefik_entrypoint }}
 Label=traefik.http.routers.loki-%i.tls=true
 Label=traefik.http.services.loki-%i.loadbalancer.server.port=3100
 
