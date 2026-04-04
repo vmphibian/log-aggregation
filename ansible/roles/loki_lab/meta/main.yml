@@ -1,6 +1,8 @@
 ---
 galaxy_info:
   author: mattgagliardi
+  namespace: mattgagliardi
+  role_name: loki_lab
   description: Rootless Podman/Quadlet deployment of Grafana Loki for dev lab environments
   license: MIT
   min_ansible_version: "2.14"
