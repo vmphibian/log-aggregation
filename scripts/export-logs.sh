@@ -7,32 +7,35 @@
 #
 # Usage:
 #   export LOKI_INSTANCE_NAME=lab-42
+#   export LOKI_TRAEFIK_DOMAIN=example.internal
 #   bash scripts/export-logs.sh
 #
-# All communication uses plain HTTP to localhost — Traefik is not involved.
-# Do not attempt HTTPS here; TLS is terminated at Traefik, not by Loki.
+# All communication uses HTTPS via Traefik. Loki ports are not published to
+# the host. Traefik terminates TLS and forwards to Loki over plain HTTP
+# on the container network.
 #
 # Environment variables:
-#   LOKI_INSTANCE_NAME  (required) — instance to export from
-#   LOKI_HTTP_PORT      (default: 3100) — Loki HTTP port
-#   LOKI_RETENTION_PERIOD (default: 168h) — used to calculate export start time
-#   LOKI_EXPORT_START   (optional) — override start time (nanosecond epoch integer)
-#   LOKI_EXPORT_END     (optional) — override end time (nanosecond epoch integer)
-#   LOKI_EXPORT_LIMIT   (default: 5000) — max entries per query_range request
+#   LOKI_INSTANCE_NAME    (required) — instance to export from
+#   LOKI_TRAEFIK_DOMAIN   (required) — Traefik base domain
+#   LOKI_RETENTION_PERIOD  (default: 168h) — used to calculate export start time
+#   LOKI_EXPORT_START     (optional) — override start time (nanosecond epoch integer)
+#   LOKI_EXPORT_END       (optional) — override end time (nanosecond epoch integer)
+#   LOKI_EXPORT_LIMIT     (default: 5000) — max entries per query_range request
 
 set -euo pipefail
 
 error() { echo "ERROR: $*" >&2; exit 1; }
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
-LOKI_HTTP_PORT="${LOKI_HTTP_PORT:-3100}"
 LOKI_RETENTION_PERIOD="${LOKI_RETENTION_PERIOD:-168h}"
 LOKI_EXPORT_LIMIT="${LOKI_EXPORT_LIMIT:-5000}"
-BASE_URL="http://localhost:${LOKI_HTTP_PORT}"
 
-# ── Validation ────────────────────────────────────────────────────────────────
-[[ -n "${LOKI_INSTANCE_NAME:-}" ]] || error "LOKI_INSTANCE_NAME is required."
+# ── Validation ─────────────────────────────────────────────────────────────────
+[[ -n "${LOKI_INSTANCE_NAME:-}" ]]    || error "LOKI_INSTANCE_NAME is required."
+[[ -n "${LOKI_TRAEFIK_DOMAIN:-}" ]]   || error "LOKI_TRAEFIK_DOMAIN is required."
 [[ "$(id -u)" -eq 0 ]] && error "This script must not run as root."
+
+BASE_URL="https://${LOKI_INSTANCE_NAME}.loki.${LOKI_TRAEFIK_DOMAIN}"
 
 # ── Time range ────────────────────────────────────────────────────────────────
 # Timestamps are NANOSECOND epoch integers — required by the Loki query_range API.
@@ -61,7 +64,7 @@ fi
 OUTPUT_FILE="./loki-export-${LOKI_INSTANCE_NAME}-$(date +%Y%m%dT%H%M%S).ndjson"
 
 echo "==> Exporting logs from Loki instance: ${LOKI_INSTANCE_NAME}"
-echo "    Base URL  : ${BASE_URL}  (plain HTTP — bypasses Traefik)"
+echo "    Base URL  : ${BASE_URL}  (HTTPS via Traefik)"
 echo "    Start     : ${START_NS} ns epoch"
 echo "    End       : ${END_NS} ns epoch"
 echo "    Output    : ${OUTPUT_FILE}"
@@ -128,8 +131,8 @@ done
 echo ""
 if [[ "${ENTRY_COUNT}" -gt 0 ]]; then
   echo "✓ Exported ${ENTRY_COUNT} log entries to ${OUTPUT_FILE}"
-  echo "  Reimport : curl -X POST http://localhost:${LOKI_HTTP_PORT}/loki/api/v1/push -H 'Content-Type: application/json' --data-binary @${OUTPUT_FILE}"
-  echo "  Offline  : logcli --addr=http://localhost:${LOKI_HTTP_PORT} query '{job=~\".*\"}'"
+  echo "  Reimport : curl -X POST ${BASE_URL}/loki/api/v1/push -H 'Content-Type: application/json' --data-binary @${OUTPUT_FILE}"
+  echo "  Offline  : logcli --addr=${BASE_URL} query '{job=~\".*\"}'"
 else
   echo "  No log entries found in the specified time range."
   echo "  The output file is empty: ${OUTPUT_FILE}"

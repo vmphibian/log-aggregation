@@ -4,16 +4,18 @@
 
 **Read this before integrating with Loki.**
 
-This deployment uses a split-access model. Understanding it prevents the most common integration errors.
+This deployment routes all external access through Traefik. Understanding the architecture prevents the most common integration errors.
 
 | Access path | URL pattern | TLS | Who uses it |
 |---|---|---|---|
-| **External** (via Traefik) | `https://<instance>.loki.<domain>` | ✅ TLS terminated at Traefik | Grafana (remote), MCP servers, browsers |
-| **Same-host** (direct) | `http://localhost:<port>` | ❌ Plain HTTP | Export script, readiness probes, co-located Grafana, Alloy on same host |
+| **External** (via Traefik) | `https://<instance>.loki.<domain>` | ✅ TLS terminated at Traefik | Grafana, Alloy, MCP servers, browsers, export script |
+| **Container-internal** | `http://localhost:3100` | ❌ Plain HTTP | Readiness probes via `podman exec` (not reachable from the host) |
 
 **Loki itself never speaks TLS.** Loki's HTTP and gRPC listeners are plain HTTP/gRPC only. Do not configure TLS certificates, HTTPS listeners, or TLS-related options anywhere in this project or in any integration that talks to Loki directly.
 
 Traefik decrypts HTTPS connections at the edge and forwards requests to Loki over plain HTTP on the container network. This is the correct and intentional architecture.
+
+**Loki ports are not published to the host.** The Quadlet unit does not bind Loki's ports to `localhost`. All client access — including from the same host — must go through Traefik. Container-internal access (e.g. readiness probes) uses `podman exec`.
 
 ---
 
@@ -21,12 +23,7 @@ Traefik decrypts HTTPS connections at the edge and forwards requests to Loki ove
 
 ### Grafana Alloy → Loki (HTTP Push)
 
-**Same-host Alloy:**
-```
-POST http://localhost:3100/loki/api/v1/push
-```
-
-**Remote Alloy (via Traefik TLS termination):**
+**All Alloy instances (via Traefik TLS termination):**
 ```
 POST https://<instance_name>.loki.<traefik_domain>/loki/api/v1/push
 ```
@@ -44,11 +41,9 @@ POST https://<instance_name>.loki.<traefik_domain>/loki/api/v1/push
 ```alloy
 loki.write "loki_lab" {
   endpoint {
-    // Same-host Alloy — direct plain HTTP, bypasses Traefik
-    url = "http://localhost:3100/loki/api/v1/push"
-
-    // Remote Alloy — use the Traefik HTTPS endpoint instead:
-    // url = "https://lab-42.loki.example.internal/loki/api/v1/push"
+    // All Alloy instances — use the Traefik HTTPS endpoint.
+    // Loki ports are not published to the host.
+    url = "https://lab-42.loki.example.internal/loki/api/v1/push"
   }
 }
 ```
@@ -68,8 +63,8 @@ Additional labels (`host`, `env`, `container`) are encouraged for query flexibil
 
 | Access path | Base URL |
 |---|---|
-| Same-host (direct, plain HTTP) | `http://localhost:<loki_http_port>` |
 | External (via Traefik, HTTPS) | `https://<instance_name>.loki.<traefik_domain>` |
+| Container-internal (via `podman exec`) | `http://localhost:3100` (not reachable from host) |
 
 ### LogQL HTTP API Endpoints
 
@@ -80,7 +75,7 @@ Additional labels (`host`, `env`, `container`) are encouraged for query flexibil
 | `/loki/api/v1/labels` | GET | Discover all label keys |
 | `/loki/api/v1/label/<name>/values` | GET | Discover values for a specific label key |
 | `/loki/api/v1/series` | GET | Discover log streams matching a selector |
-| `/ready` | GET | Readiness probe — returns `ready` with HTTP 200. **Same-host plain HTTP only.** |
+| `/ready` | GET | Readiness probe — returns `ready` with HTTP 200. **Container-internal only via `podman exec`.** |
 
 All endpoints are unauthenticated in this deployment.
 
@@ -137,8 +132,8 @@ All endpoints are unauthenticated in this deployment.
 ## LLM / MCP Compatibility Notes
 
 - The LogQL HTTP API is the intended integration surface for any future MCP server.
-- **Target the Traefik HTTPS endpoint** (`https://`) when operating from a remote host. Same-host MCP servers may use `http://localhost` directly.
-- **Loki does not speak TLS.** An MCP server must not attempt a TLS handshake directly with Loki's port — all TLS is handled by Traefik at the edge.
+- **Target the Traefik HTTPS endpoint** (`https://`) for all access. Loki ports are not published to the host.
+- **Loki does not speak TLS.** An MCP server must not attempt a TLS handshake directly with Loki — all TLS is handled by Traefik at the edge.
 - Label discovery via `/labels` and `/label/<name>/values` enables dynamic context building for LLM prompts without hardcoding stream selectors.
 - All responses are JSON — no custom serialization required.
 - **Timestamp parameters use nanosecond epoch integers** — see query_range section above. This is the single most common integration error.

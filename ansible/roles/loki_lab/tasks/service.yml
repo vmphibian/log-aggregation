@@ -9,15 +9,12 @@
     scope: user
     daemon_reload: true
 
-- name: Wait for Loki readiness (plain HTTP to localhost)
-  # Direct HTTP call to Loki — do NOT use the Traefik HTTPS endpoint here.
-  # Traefik is not assumed to be running in all environments (e.g. CI).
-  ansible.builtin.uri:
-    url: "http://localhost:{{ loki_http_port }}/ready"
-    method: GET
-    status_code: 200
+- name: Wait for Loki readiness (internal check)
+  ansible.builtin.command:
+    cmd: >
+      podman exec loki-{{ loki_instance_name }}
+      wget -qO- http://localhost:3100/ready
   register: _loki_ready
   retries: 15
-  delay: 2
-  until: _loki_ready.status == 200
-  failed_when: _loki_ready.status != 200
+  delay: 3
+  until: _loki_ready.rc == 0

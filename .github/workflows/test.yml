@@ -92,31 +92,28 @@ jobs:
           LOKI_IMAGE: docker.io/grafana/loki:3.5.0
         run: bash scripts/deploy.sh
 
-      - name: Assert Loki is ready (plain HTTP to localhost)
+      - name: Assert Loki is ready (container-internal check via podman exec)
         run: |
-          curl -sf http://localhost:3100/ready
-          echo "Loki /ready returned 200 OK"
+          podman exec loki-ci-test wget -qO- http://localhost:3100/ready
+          echo "Loki /ready returned OK"
 
-      - name: Push a test log entry
+      - name: Push a test log entry (container-internal HTTP via podman exec)
         run: |
           NOW_NS=$(date +%s%N)
-          curl -sf -X POST http://localhost:3100/loki/api/v1/push \
-            -H 'Content-Type: application/json' \
-            -d "{\"streams\":[{\"stream\":{\"job\":\"ci-integration\",\"instance\":\"ci-test\"},\"values\":[[\"${NOW_NS}\",\"Integration test log entry\"]]}]}"
-          echo "Log push returned 204"
+          podman exec loki-ci-test wget -qO- --post-data \
+            "{\"streams\":[{\"stream\":{\"job\":\"ci-integration\",\"instance\":\"ci-test\"},\"values\":[[\"${NOW_NS}\",\"Integration test log entry\"]]}]}" \
+            --header 'Content-Type: application/json' \
+            http://localhost:3100/loki/api/v1/push
+          echo "Log push succeeded"
           echo "PUSH_TS=${NOW_NS}" >> "${GITHUB_ENV}"
 
-      - name: Query pushed log entry via query_range
+      - name: Query pushed log entry via query_range (container-internal HTTP via podman exec)
         # nanosecond epoch timestamps — required by Loki query_range API
         run: |
           START_NS=$(( PUSH_TS - 60000000000 ))
           END_NS=$(( PUSH_TS + 60000000000 ))
-          RESULT=$(curl -sf "http://localhost:3100/loki/api/v1/query_range" \
-            --get \
-            --data-urlencode 'query={job="ci-integration",instance="ci-test"}' \
-            --data-urlencode "start=${START_NS}" \
-            --data-urlencode "end=${END_NS}" \
-            --data-urlencode "limit=10")
+          RESULT=$(podman exec loki-ci-test wget -qO- \
+            "http://localhost:3100/loki/api/v1/query_range?query=%7Bjob%3D%22ci-integration%22%2Cinstance%3D%22ci-test%22%7D&start=${START_NS}&end=${END_NS}&limit=10")
           echo "${RESULT}" | python3 -c "
           import sys, json
           d = json.load(sys.stdin)
@@ -125,17 +122,6 @@ jobs:
           assert len(results[0]['values']) > 0, 'No entries returned'
           print('Query returned', len(results[0]['values']), 'entries — OK')
           "
-
-      - name: Run export-logs.sh
-        env:
-          LOKI_INSTANCE_NAME: ci-test
-          LOKI_HTTP_PORT: "3100"
-          LOKI_RETENTION_PERIOD: 1h
-        run: |
-          bash scripts/export-logs.sh
-          EXPORT_FILE=$(ls loki-export-ci-test-*.ndjson | head -1)
-          [[ -s "${EXPORT_FILE}" ]] || { echo "Export file is empty: ${EXPORT_FILE}"; exit 1; }
-          echo "Export file non-empty: ${EXPORT_FILE} ($(wc -l < "${EXPORT_FILE}") lines)"
 
       - name: Teardown
         if: always()

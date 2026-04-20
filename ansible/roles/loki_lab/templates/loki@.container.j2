@@ -32,8 +32,9 @@ Volume={{ loki_config_dir_base }}/%i/loki.yaml:/etc/loki/loki.yaml:ro,Z
 
 # Ports bound to localhost only — Traefik reaches Loki over plain HTTP on
 # loki_http_port. External traffic must never reach these ports directly.
-PublishPort=127.0.0.1:{{ loki_http_port }}:3100
-PublishPort=127.0.0.1:{{ loki_grpc_port }}:9095
+# MDG commenting these out on April 20, 2026 due to being unnecessary in our deployment environment.
+#PublishPort=127.0.0.1:{{ loki_http_port }}:3100
+#PublishPort=127.0.0.1:{{ loki_grpc_port }}:9095
 
 Exec=-config.file=/etc/loki/loki.yaml
 

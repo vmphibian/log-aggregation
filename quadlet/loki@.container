@@ -13,17 +13,18 @@
 
 [Unit]
 Description=Loki log aggregation instance %i
-After=network-online.target
+After=network-online.target loki-%i-volume.service
+Requires=loki-%i-volume.service
 
 [Container]
 Image=docker.io/grafana/loki:3.5.0
 ContainerName=loki-%i
 
-Volume=loki-%i:/loki:Z
+Volume=loki-%i.volume:/loki:Z
 Volume=%h/.config/loki/%i/loki.yaml:/etc/loki/loki.yaml:ro,Z
 
-PublishPort=127.0.0.1:3100:3100
-PublishPort=127.0.0.1:9095:9095
+#PublishPort=127.0.0.1:3100:3100
+#PublishPort=127.0.0.1:9095:9095
 
 Exec=-config.file=/etc/loki/loki.yaml
 

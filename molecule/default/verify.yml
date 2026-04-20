@@ -1,24 +1,24 @@
 ---
 # verify.yml — Assert correctness of the deployed Loki instance.
 #
-# TLS note: All HTTP calls use plain HTTP to localhost. Traefik is not present
-# in the Molecule environment. TLS termination is Traefik's responsibility and
-# is not tested here. This is correct and expected.
+# All API calls run inside the Loki container via podman exec. Loki ports are
+# not published to the host — external access is via Traefik only. Traefik is
+# not present in the Molecule environment, so container-internal HTTP is used.
 
 - name: Verify
   hosts: localhost
   connection: local
   gather_facts: true
   tasks:
-    - name: Wait for Loki readiness (plain HTTP to localhost)
-      ansible.builtin.uri:
-        url: "http://localhost:3100/ready"
-        method: GET
-        status_code: 200
-      register: _ready
+    - name: Wait for Loki readiness (internal check)
+      ansible.builtin.command:
+        cmd: >
+          podman exec loki-{{ loki_instance_name }}
+          wget -qO- http://localhost:3100/ready
+      register: _loki_ready
       retries: 15
-      delay: 2
-      until: _ready.status == 200
+      delay: 3
+      until: _loki_ready.rc == 0
 
     - name: Assert Loki container is running
       ansible.builtin.command:
@@ -72,43 +72,34 @@
           - "_labels['traefik.http.services.loki-molecule-test.loadbalancer.server.port'] == '3100'"
         fail_msg: "Traefik loadbalancer port label is incorrect or missing."
 
-    - name: Push a test log entry (plain HTTP to localhost — not via Traefik)
-      ansible.builtin.uri:
-        url: "http://localhost:3100/loki/api/v1/push"
-        method: POST
-        body_format: json
-        body:
-          streams:
-            - stream:
-                job: "molecule-verify"
-                instance: "molecule-test"
-              values:
-                - - "{{ (ansible_date_time.epoch | int * 1000000000) | string }}"
-                  - "Molecule verification test log entry"
-        status_code: 204
+    - name: Push a test log entry (container-internal HTTP via podman exec)
+      ansible.builtin.command:
+        cmd: >
+          podman exec loki-{{ loki_instance_name }}
+          wget -qO- --post-data
+          '{"streams":[{"stream":{"job":"molecule-verify","instance":"molecule-test"},"values":[["{{ (ansible_date_time.epoch | int * 1000000000) | string }}","Molecule verification test log entry"]]}]}'
+          --header 'Content-Type: application/json'
+          http://localhost:3100/loki/api/v1/push
       register: _push
-
-    - name: Assert log push returned 204
-      ansible.builtin.assert:
-        that:
-          - _push.status == 204
-        fail_msg: "Log push to Loki returned {{ _push.status }}, expected 204."
+      changed_when: false
+      failed_when: _push.rc != 0
 
     - name: Wait briefly for log ingestion
       ansible.builtin.pause:
         seconds: 3
 
-    - name: Query log entry via query_range (plain HTTP to localhost)
-      ansible.builtin.uri:
-        url: "http://localhost:3100/loki/api/v1/query_range?query={{ '{job=\"molecule-verify\",instance=\"molecule-test\"}' | urlencode }}&start={{ ((ansible_date_time.epoch | int - 60) * 1000000000) | string }}&end={{ ((ansible_date_time.epoch | int + 60) * 1000000000) | string }}&limit=10"
-        method: GET
-        # nanosecond epoch timestamps in query params — required by Loki query_range API
-        status_code: 200
+    - name: Query log entry via query_range (container-internal HTTP via podman exec)
+      ansible.builtin.command:
+        cmd: >
+          podman exec loki-{{ loki_instance_name }}
+          wget -qO- 'http://localhost:3100/loki/api/v1/query_range?query=%7Bjob%3D%22molecule-verify%22%2Cinstance%3D%22molecule-test%22%7D&start={{ ((ansible_date_time.epoch | int - 60) * 1000000000) | string }}&end={{ ((ansible_date_time.epoch | int + 60) * 1000000000) | string }}&limit=10'
       register: _query
+      changed_when: false
+      failed_when: _query.rc != 0
 
     - name: Assert queried log entry is returned
       ansible.builtin.assert:
         that:
-          - _query.json.data.result | length > 0
-          - _query.json.data.result[0]['values'] | length > 0
+          - (_query.stdout | from_json).data.result | length > 0
+          - (_query.stdout | from_json).data.result[0]['values'] | length > 0
         fail_msg: "Pushed log entry was not returned by query_range."

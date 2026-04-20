@@ -14,8 +14,8 @@ Each lab host runs one or more Loki instances managed by `systemd` via Quadlet. 
 
 | Path | Protocol | Who uses it |
 |---|---|---|
-| External (via Traefik) | HTTPS — TLS terminated at Traefik | Grafana (remote), browsers, MCP servers |
-| Same-host (direct) | HTTP — plain, bypasses Traefik | Export script, readiness probes, co-located Grafana/Alloy |
+| External (via Traefik) | HTTPS — TLS terminated at Traefik | Grafana, Alloy, export script, browsers, MCP servers |
+| Container-internal | HTTP — plain, inside container only | Readiness probes via `podman exec` |
 
 Do not add TLS configuration — certificates, HTTPS listeners, redirects, or otherwise — to `loki.yaml`, the Quadlet unit, the Ansible role, shell scripts, or any documentation example. This constraint is absolute.
 
@@ -58,13 +58,13 @@ bash scripts/deploy.sh
 | `loki_instance_name` | `LOKI_INSTANCE_NAME` | Yes | — | Unique instance identifier. Must match `^[a-z0-9][a-z0-9-]*[a-z0-9]$`. |
 | `loki_storage_backend` | `LOKI_STORAGE_BACKEND` | Yes | `local` | `local` or `s3`. |
 | `loki_s3_mount_path` | `LOKI_S3_MOUNT_PATH` | If `s3` | — | Absolute path where s3fs has mounted the S3 bucket. |
-| `loki_http_port` | `LOKI_HTTP_PORT` | No | `3100` | Loki HTTP port (localhost only, plain HTTP). |
-| `loki_grpc_port` | `LOKI_GRPC_PORT` | No | `9095` | Loki gRPC port (localhost only, for Alloy push). |
+| `loki_http_port` | `LOKI_HTTP_PORT` | No | `3100` | Loki HTTP port (container-internal only, not published to host). |
+| `loki_grpc_port` | `LOKI_GRPC_PORT` | No | `9095` | Loki gRPC port (container-internal only, not published to host). |
 | `loki_retention_period` | `LOKI_RETENTION_PERIOD` | No | `168h` | Log retention window (Go duration string). |
 | `loki_traefik_domain` | `LOKI_TRAEFIK_DOMAIN` | Yes | — | Base domain. Instance reachable at `https://<name>.loki.<domain>` via Traefik. |
 | `loki_image` | `LOKI_IMAGE` | No | `docker.io/grafana/loki:3.5.0` | Fully-qualified image. Never `latest`. |
 | `loki_config_dir_base` | `LOKI_CONFIG_DIR_BASE` | No | `~/.config/loki` | Host base directory for rendered configs. |
-| — | `LOKI_READY_TIMEOUT_SECONDS` | No | `180` | Seconds to wait for the localhost `/ready` probe before dumping diagnostics and failing. |
+| — | `LOKI_READY_TIMEOUT_SECONDS` | No | `180` | Seconds to wait for the `podman exec` readiness probe before dumping diagnostics and failing. |
 
 Rendered `loki.yaml` is intentionally installed with mode `0644` inside a `0755`
 instance directory. The Loki image runs as a non-root UID, and rootless Podman
@@ -92,14 +92,15 @@ The following limits are tuned for lab use. Adjust for production workloads. See
 
 ```bash
 export LOKI_INSTANCE_NAME=lab-42
+export LOKI_TRAEFIK_DOMAIN=example.internal
 bash scripts/export-logs.sh
 ```
 
 Output: `./loki-export-<instance>-<timestamp>.ndjson`
 
 The export file can be:
-- **Reimported** via the Loki push API: `curl -X POST http://localhost:3100/loki/api/v1/push --data-binary @loki-export-*.ndjson`
-- **Queried offline** with `logcli`: `logcli --addr=http://localhost:3100 query '{job=~".*"}'`
+- **Reimported** via the Loki push API: `curl -X POST https://lab-42.loki.example.internal/loki/api/v1/push --data-binary @loki-export-*.ndjson`
+- **Queried offline** with `logcli`: `logcli --addr=https://lab-42.loki.example.internal query '{job=~".*"}'`
 
 ---
 
@@ -108,11 +109,11 @@ The export file can be:
 Deploy two instances with different names:
 
 ```bash
-LOKI_INSTANCE_NAME=lab-42  LOKI_HTTP_PORT=3100 bash scripts/deploy.sh
-LOKI_INSTANCE_NAME=lab-43  LOKI_HTTP_PORT=3101 bash scripts/deploy.sh
+LOKI_INSTANCE_NAME=lab-42  LOKI_STORAGE_BACKEND=local LOKI_TRAEFIK_DOMAIN=example.internal bash scripts/deploy.sh
+LOKI_INSTANCE_NAME=lab-43  LOKI_STORAGE_BACKEND=local LOKI_TRAEFIK_DOMAIN=example.internal bash scripts/deploy.sh
 ```
 
-Both instances share the single `loki@.container` unit template. Traefik routes by subdomain (`lab-42.loki.example.internal`, `lab-43.loki.example.internal`). There are no port or label conflicts.
+Both instances share the single `loki@.container` unit template. Traefik routes by subdomain (`lab-42.loki.example.internal`, `lab-43.loki.example.internal`). No port differentiation is needed.
 
 ---
 

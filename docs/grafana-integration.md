@@ -8,21 +8,9 @@ Add a **Loki** datasource in Grafana for each deployed instance.
 
 ## URL Configuration
 
-**Use the correct URL based on where Grafana is running.**
+**All Grafana instances must use the Traefik HTTPS endpoint.**
 
-### Same-host Grafana (recommended for co-located deployments)
-
-```
-http://localhost:<loki_http_port>
-```
-
-Example: `http://localhost:3100`
-
-- Plain HTTP, direct to Loki, bypasses Traefik entirely.
-- Preferred when Grafana and Loki run on the same host — avoids a Traefik round-trip.
-- **Do not configure TLS client certificates or HTTPS** on this path. Grafana communicating with Loki over `http://localhost` is correct and expected.
-
-### Remote Grafana (different host)
+Loki ports are not published to the host. All access — including from co-located Grafana — goes through Traefik.
 
 ```
 https://<instance_name>.loki.<traefik_domain>
@@ -32,7 +20,7 @@ Example: `https://lab-42.loki.example.internal`
 
 - HTTPS via Traefik TLS termination.
 - Traefik decrypts the connection and forwards to Loki over plain HTTP internally.
-- Use when Grafana is on a different host from Loki.
+- Works for both same-host and remote Grafana deployments.
 
 ---
 
@@ -44,8 +32,6 @@ None. This deployment does not configure Loki authentication.
 
 ## Datasource Provisioning YAML
 
-### Same-host Grafana
-
 ```yaml
 # grafana/provisioning/datasources/loki-lab-42.yaml
 apiVersion: 1
@@ -53,24 +39,7 @@ datasources:
   - name: "Loki lab-42"
     type: loki
     access: proxy
-    # Plain HTTP direct to Loki — bypasses Traefik, no TLS
-    url: "http://localhost:3100"
-    isDefault: false
-    editable: true
-    jsonData:
-      maxLines: 1000
-```
-
-### Remote Grafana (via Traefik)
-
-```yaml
-# grafana/provisioning/datasources/loki-lab-42.yaml
-apiVersion: 1
-datasources:
-  - name: "Loki lab-42"
-    type: loki
-    access: proxy
-    # HTTPS via Traefik TLS termination — use when Grafana is on a remote host
+    # HTTPS via Traefik TLS termination
     url: "https://lab-42.loki.example.internal"
     isDefault: false
     editable: true
@@ -91,8 +60,7 @@ apiVersion: 1
 datasources:
   - name: "Loki lab-42"
     type: loki
-    url: "http://localhost:3100"   # if co-located
-    # url: "https://lab-42.loki.example.internal"  # if remote
+    url: "https://lab-42.loki.example.internal"
   - name: "Loki lab-s3-01"
     type: loki
     url: "https://lab-s3-01.loki.example.internal"

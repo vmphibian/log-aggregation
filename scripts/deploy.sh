@@ -18,7 +18,6 @@
 #   - Rootless Podman (>= 4.4)
 #   - systemd user session (loginctl enable-linger $USER)
 #   - envsubst (gettext-base package)
-#   - curl (for readiness check)
 #   - quadlet/loki@.container present (installed from repo root)
 
 set -euo pipefail
@@ -145,18 +144,17 @@ if ! systemctl --user start "${SERVICE}"; then
 fi
 
 # ── Readiness check ───────────────────────────────────────────────────────────
-# Direct HTTP call to Loki — do not use the Traefik HTTPS endpoint here.
-# Traefik may not be present in all environments (e.g. development, CI).
-READY_URL="http://localhost:${LOKI_HTTP_PORT:-3100}/ready"
-UNIT="${SERVICE}"
+# Readiness probe runs inside the container via podman exec. Loki ports are
+# not published to the host — external access is via Traefik only.
+CONTAINER_NAME="loki-${LOKI_INSTANCE_NAME}"
 TIMEOUT="${LOKI_READY_TIMEOUT_SECONDS:-180}"
 
-echo "==> Waiting for Loki readiness (${READY_URL})..."
+echo "==> Waiting for Loki readiness (podman exec ${CONTAINER_NAME})..."
 end=$((SECONDS + TIMEOUT))
-until curl -fsS "${READY_URL}" >/dev/null; do
+until podman exec "${CONTAINER_NAME}" wget -qO- http://localhost:3100/ready >/dev/null 2>&1; do
   if (( SECONDS >= end )); then
     echo "ERROR: Loki did not become ready within ${TIMEOUT}s." >&2
-    print_loki_failure_diagnostics "${UNIT}"
+    print_loki_failure_diagnostics "${SERVICE}"
 
     exit 1
   fi
@@ -171,8 +169,6 @@ echo ""
 echo "  Instance name   : ${LOKI_INSTANCE_NAME}"
 echo "  Storage backend : ${LOKI_STORAGE_BACKEND}"
 echo "  Traefik HTTPS   : https://${LOKI_INSTANCE_NAME}.loki.${LOKI_TRAEFIK_DOMAIN}  (TLS terminated at Traefik)"
-echo "  Direct HTTP     : http://localhost:${LOKI_HTTP_PORT}  (same-host only, bypasses Traefik)"
-echo "  gRPC port       : ${LOKI_GRPC_PORT}  (localhost, for Grafana Alloy push)"
 echo ""
-echo "  Export logs     : bash scripts/export-logs.sh"
+echo "  Export logs     : LOKI_TRAEFIK_DOMAIN=${LOKI_TRAEFIK_DOMAIN} bash scripts/export-logs.sh"
 echo "  Stop service    : systemctl --user stop loki@${LOKI_INSTANCE_NAME}.service"
