@@ -13,14 +13,13 @@
 
 [Unit]
 Description=Loki log aggregation instance %i
-After=network-online.target loki-%i-volume.service
-Requires=loki-%i-volume.service
+After=network-online.target
 
 [Container]
 Image=docker.io/grafana/loki:3.5.0
 ContainerName=loki-%i
 
-Volume=loki-%i.volume:/loki:Z
+Volume=loki-%i:/loki:Z
 Volume=%h/.config/loki/%i/loki.yaml:/etc/loki/loki.yaml:ro,Z
 
 #PublishPort=127.0.0.1:3100:3100
