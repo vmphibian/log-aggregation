@@ -18,3 +18,4 @@
   retries: 15
   delay: 3
   until: _loki_ready.rc == 0
+  changed_when: false
