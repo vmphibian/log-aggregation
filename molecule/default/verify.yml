@@ -9,6 +9,8 @@
   hosts: localhost
   connection: local
   gather_facts: true
+  vars:
+    loki_instance_name: "molecule-test"
   tasks:
     - name: Wait for Loki readiness (internal check)
       ansible.builtin.command:
