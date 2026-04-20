@@ -10,7 +10,7 @@
     path: "{{ ansible_user_dir }}/.config/containers/systemd"
     state: directory
     mode: "0750"
-    
+
 - name: Render volume Quadlet unit for instance {{ loki_instance_name }}
   ansible.builtin.template:
     src: loki.volume.j2
