@@ -18,16 +18,20 @@
 #   - Rootless Podman (>= 4.4)
 #   - systemd user session (loginctl enable-linger $USER)
 #   - envsubst (gettext-base package)
-#   - quadlet/loki@.container present (installed from repo root)
+#   - quadlet/loki.container.tpl present (installed from repo root)
 
 set -euo pipefail
 
-# ── Defaults ─────────────────────────────────────────────────────────────────
+# ── Defaults ────────────────────────────────────────────────────────────────────
 LOKI_HTTP_PORT="${LOKI_HTTP_PORT:-3100}"
 LOKI_GRPC_PORT="${LOKI_GRPC_PORT:-9095}"
 LOKI_RETENTION_PERIOD="${LOKI_RETENTION_PERIOD:-168h}"
 LOKI_IMAGE="${LOKI_IMAGE:-docker.io/grafana/loki:3.5.0}"
 LOKI_CONFIG_DIR_BASE="${LOKI_CONFIG_DIR_BASE:-${HOME}/.config/loki}"
+LOKI_TRAEFIK_ENTRYPOINT="${LOKI_TRAEFIK_ENTRYPOINT:-websecure}"
+# When true, render PublishPort= directives binding Loki to 127.0.0.1. When
+# false (default), Traefik reaches Loki over the container network only.
+LOKI_PUBLISH_PORTS="${LOKI_PUBLISH_PORTS:-false}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -117,25 +121,38 @@ else
 fi
 
 # ── Quadlet unit ──────────────────────────────────────────────────────────────
+# Render a concrete per-instance unit. The static template uses envsubst
+# placeholders, so we expand it with the current instance's values. The
+# instantiated-unit pattern (loki@.container with %i) is intentionally not
+# used — Quadlet cannot resolve %i in Volume= lines at generator time.
 QUADLET_DIR="${HOME}/.config/containers/systemd"
-QUADLET_DEST="${QUADLET_DIR}/loki@.container"
+QUADLET_DEST="${QUADLET_DIR}/loki-${LOKI_INSTANCE_NAME}.container"
 mkdir -p "${QUADLET_DIR}"
 
-if [[ ! -f "${QUADLET_DEST}" ]]; then
-  echo "==> Installing Quadlet unit template..."
-  cp "${REPO_ROOT}/quadlet/loki@.container" "${QUADLET_DEST}"
-  chmod 640 "${QUADLET_DEST}"
-  echo "    Installed: ${QUADLET_DEST}"
+# Expand the PublishPort directives conditionally. envsubst only replaces
+# variables; it has no conditional syntax, so we drive that via two helper
+# variables that expand to either a full directive line or an empty string.
+if [[ "${LOKI_PUBLISH_PORTS}" == "true" ]]; then
+  LOKI_PUBLISHPORT_HTTP_LINE="PublishPort=127.0.0.1:${LOKI_HTTP_PORT}:3100"
+  LOKI_PUBLISHPORT_GRPC_LINE="PublishPort=127.0.0.1:${LOKI_GRPC_PORT}:9095"
 else
-  echo "==> Quadlet unit already installed — skipping."
+  LOKI_PUBLISHPORT_HTTP_LINE=""
+  LOKI_PUBLISHPORT_GRPC_LINE=""
 fi
+export LOKI_INSTANCE_NAME LOKI_IMAGE LOKI_CONFIG_DIR_BASE LOKI_TRAEFIK_DOMAIN \
+       LOKI_TRAEFIK_ENTRYPOINT LOKI_PUBLISHPORT_HTTP_LINE LOKI_PUBLISHPORT_GRPC_LINE
+
+echo "==> Rendering Quadlet unit for instance ${LOKI_INSTANCE_NAME}..."
+envsubst < "${REPO_ROOT}/quadlet/loki.container.tpl" > "${QUADLET_DEST}"
+chmod 640 "${QUADLET_DEST}"
+echo "    Rendered: ${QUADLET_DEST}"
 
 # ── systemd daemon-reload ────────────────────────────────────────────────────
 echo "==> Reloading systemd user daemon..."
 systemctl --user daemon-reload
 
 # ── Enable and start service ──────────────────────────────────────────────────
-SERVICE="loki@${LOKI_INSTANCE_NAME}.service"
+SERVICE="loki-${LOKI_INSTANCE_NAME}.service"
 echo "==> Starting ${SERVICE}..."
 if ! systemctl --user start "${SERVICE}"; then
   echo "ERROR: Failed to start ${SERVICE}." >&2
@@ -171,4 +188,4 @@ echo "  Storage backend : ${LOKI_STORAGE_BACKEND}"
 echo "  Traefik HTTPS   : https://${LOKI_INSTANCE_NAME}.loki.${LOKI_TRAEFIK_DOMAIN}  (TLS terminated at Traefik)"
 echo ""
 echo "  Export logs     : LOKI_TRAEFIK_DOMAIN=${LOKI_TRAEFIK_DOMAIN} bash scripts/export-logs.sh"
-echo "  Stop service    : systemctl --user stop loki@${LOKI_INSTANCE_NAME}.service"
+echo "  Stop service    : systemctl --user stop loki-${LOKI_INSTANCE_NAME}.service"

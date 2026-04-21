@@ -2,8 +2,10 @@
 # volume.yml — provision the named Podman volume Quadlet unit.
 # The volume unit file name MUST be loki-{{ loki_instance_name }}.volume —
 # Quadlet derives the Podman volume name from this filename.
-# The container unit references it as Volume=loki-%i.volume to create the
-# automatic systemd ordering dependency (loki-%i-volume.service).
+# The per-instance container unit references it as
+# Volume=loki-{{ loki_instance_name }}.volume, which Quadlet resolves at
+# generator time to create the automatic systemd ordering dependency
+# (loki-{{ loki_instance_name }}-volume.service).
 
 - name: Ensure Quadlet directory exists
   ansible.builtin.file:

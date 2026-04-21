@@ -10,7 +10,7 @@
 
 - name: Restart loki instance
   ansible.builtin.systemd:
-    name: "loki@{{ loki_instance_name }}.service"
+    name: "loki-{{ loki_instance_name }}.service"
     state: restarted
     scope: user
   listen: Restart loki instance

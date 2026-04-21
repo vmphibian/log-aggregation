@@ -128,7 +128,7 @@ jobs:
         env:
           LOKI_INSTANCE_NAME: ci-test
         run: |
-          systemctl --user stop "loki@ci-test.service" || true
+          systemctl --user stop "loki-ci-test.service" || true
           podman volume rm "loki-ci-test" || true
           rm -rf "${HOME}/.config/loki/ci-test" || true
           echo "Teardown complete."
