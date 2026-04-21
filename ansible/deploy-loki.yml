@@ -19,12 +19,14 @@
 - name: Deploy Loki lab instance
   hosts: loki_hosts
   gather_facts: true
+  # Rootless Podman/Quadlet — run as the target user, not root.
+  become: false
   roles:
     - role: loki_lab
       vars:
         loki_instance_name: "lab-42"
         loki_storage_backend: "local"
-        loki_traefik_domain: "example.internal"
+        loki_traefik_domain: "example.internal"   # required
         loki_retention_period: "168h"
 
 # S3 backend example (uncomment and adjust):

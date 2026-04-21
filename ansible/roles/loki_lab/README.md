@@ -2,7 +2,7 @@
 
 Deploys **Grafana Loki** (monolithic mode) as a rootless, systemd-managed Podman container via [Quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html) on RHEL 9 / EL 9 hosts.
 
-Each invocation manages one named Loki instance. A single instantiated systemd unit template (`loki@.container`) serves all instances — no per-instance unit file is needed. Log ingestion is handled by Grafana Alloy (out of scope). Storage supports a local Podman volume or an S3-backed volume via s3fs. TLS is terminated upstream at Traefik; Loki runs plain HTTP only.
+Each invocation manages one named Loki instance. For each instance the role renders a dedicated Quadlet container unit (`loki-<instance>.container`) — the systemd instantiated-unit pattern is intentionally **not** used because Quadlet cannot resolve the `%i` specifier in `Volume=` lines at generator time. Log ingestion is handled by Grafana Alloy (out of scope). Storage supports a local Podman volume or an S3-backed volume via s3fs. TLS is terminated upstream at Traefik; Loki runs plain HTTP only.
 
 **Pinned image:** `docker.io/grafana/loki:3.5.0`
 
@@ -33,8 +33,9 @@ Each invocation manages one named Loki instance. A single instantiated systemd u
 | Variable | Default | Description |
 |---|---|---|
 | `loki_storage_backend` | `local` | Storage backend: `local` (named Podman volume) or `s3` (bind-mounted s3fs path). |
-| `loki_http_port` | `3100` | Host port for Loki's HTTP listener (localhost only). |
-| `loki_grpc_port` | `9095` | Host port for Loki's gRPC listener (localhost only). |
+| `loki_publish_ports` | `false` | If `true`, publish `loki_http_port` and `loki_grpc_port` on the host loopback (127.0.0.1). Disabled by default — Traefik reaches Loki over the container network. |
+| `loki_http_port` | `3100` | Host port for Loki's HTTP listener (applied only when `loki_publish_ports: true`). |
+| `loki_grpc_port` | `9095` | Host port for Loki's gRPC listener (applied only when `loki_publish_ports: true`). |
 | `loki_retention_period` | `168h` | Log retention as a Go duration string (e.g. `24h`, `168h`). |
 | `loki_image` | `docker.io/grafana/loki:3.5.0` | Fully-qualified container image reference. Pin to a specific version. |
 | `loki_config_dir_base` | `{{ ansible_user_dir }}/.config/loki` | Base directory for rendered Loki configuration files on the host. |

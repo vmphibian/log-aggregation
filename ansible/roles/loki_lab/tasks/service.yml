@@ -3,7 +3,7 @@
 
 - name: "Enable and start Loki service: {{ loki_instance_name }}"
   ansible.builtin.systemd:
-    name: "loki@{{ loki_instance_name }}.service"
+    name: "loki-{{ loki_instance_name }}.service"
     state: started
     enabled: true
     scope: user

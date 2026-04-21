@@ -16,11 +16,21 @@ loki_instance_name: "{{ lab_instance_name | default('') }}"
 loki_storage_backend: "local"
 
 # ── Networking ────────────────────────────────────────────────────────────────
+# Whether to publish Loki's HTTP and gRPC ports on the host loopback.
+# Disabled by default: Traefik reaches Loki over the container network, so
+# host ports are not required. Set to true if co-located tooling (e.g.
+# Grafana Alloy, readiness probes run on the host) needs direct access via
+# 127.0.0.1. When false, loki_http_port and loki_grpc_port have no effect
+# on the rendered Quadlet unit.
+loki_publish_ports: false
+
 # Host port Loki's HTTP listener is bound to (localhost only).
+# Only applied when loki_publish_ports is true.
 # Traefik communicates with Loki on this port over plain HTTP — no TLS.
 loki_http_port: 3100
 
 # Host port for Loki's gRPC listener (localhost only).
+# Only applied when loki_publish_ports is true.
 # Grafana Alloy push target when Alloy runs on the same host.
 loki_grpc_port: 9095
 
@@ -43,8 +53,10 @@ loki_config_dir_base: "{{ ansible_user_dir }}/.config/loki"
 # ── Traefik integration ───────────────────────────────────────────────────────
 # Domain used to build the per-instance subdomain routing rule:
 #   Host(`<instance>.loki.<domain>`)
-# Falls back to lab_traefik_domain if set at the playbook level.
-loki_traefik_domain: "{{ lab_traefik_domain | default('') }}"
+# REQUIRED — no default is provided. Supply via playbook vars, inventory, or
+# extra-vars. The preflight stage asserts this is set and non-empty.
+# Example: loki_traefik_domain: "lab.internal"
+# loki_traefik_domain: ""
 
 # Traefik entrypoint name. Must match the TLS entrypoint in your Traefik config.
 # Falls back to lab_traefik_entrypoint if set at the playbook level.

@@ -73,13 +73,28 @@ jobs:
         # all runner configurations, then run -dryrun to validate without
         # writing output files.
         #
+        # The repository ships quadlet/loki.container.tpl as an envsubst
+        # template (concrete per-instance files are rendered by deploy.sh or
+        # the Ansible role). Here we render it with representative sample
+        # values and syntax-check the result.
+        #
         # Informational messages like "Error occurred resolving path" for
         # missing system dirs are expected and benign — we ignore them by
         # checking the generator exit code only, not grepping stderr text.
         run: |
+          sudo apt-get update
+          sudo apt-get install -y gettext-base
           export XDG_CONFIG_HOME="/tmp/quadlet-xdg"
           mkdir -p "${XDG_CONFIG_HOME}/containers/systemd"
-          cp quadlet/loki@.container "${XDG_CONFIG_HOME}/containers/systemd/"
+          export LOKI_INSTANCE_NAME="ci-syntax"
+          export LOKI_IMAGE="docker.io/grafana/loki:3.5.0"
+          export LOKI_CONFIG_DIR_BASE="/tmp/loki-config"
+          export LOKI_TRAEFIK_DOMAIN="example.internal"
+          export LOKI_TRAEFIK_ENTRYPOINT="websecure"
+          export LOKI_PUBLISHPORT_HTTP_LINE=""
+          export LOKI_PUBLISHPORT_GRPC_LINE=""
+          envsubst < quadlet/loki.container.tpl \
+            > "${XDG_CONFIG_HOME}/containers/systemd/loki-${LOKI_INSTANCE_NAME}.container"
           /usr/libexec/podman/quadlet -dryrun
           echo "Quadlet syntax OK."
 

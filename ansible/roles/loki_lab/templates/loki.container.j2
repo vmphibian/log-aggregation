@@ -1,0 +1,61 @@
+# Quadlet container unit for a Loki lab instance.
+# Rendered by Ansible from templates/loki.container.j2
+#
+# This file is rendered once per instance to
+#   ~/.config/containers/systemd/loki-{{ loki_instance_name }}.container
+#
+# We do NOT use systemd's instantiated unit pattern (loki@.container) here.
+# Quadlet resolves Volume= references to generated .service units at generator
+# time, so the systemd %i specifier cannot be expanded in Volume= lines and
+# the generator would refuse to emit a unit. A concrete per-instance file
+# avoids this entirely and is still multi-instance safe — each Ansible run
+# renders its own file with a unique filename.
+#
+# Jinja2 substitutes all instance-specific and host-wide values at render time.
+#
+# Podman compatibility: Podman 4.4+ (RHEL 9 target). Do not use Quadlet
+# features introduced after Podman 4.4 without a compatibility note in README.md.
+#
+# TLS NOTE: Loki listens on plain HTTP only. TLS is terminated at Traefik.
+# Do not add TLS configuration to this unit.
+
+[Unit]
+Description=Loki log aggregation instance {{ loki_instance_name }}
+After=network-online.target loki-{{ loki_instance_name }}-volume.service
+Requires=loki-{{ loki_instance_name }}-volume.service
+
+[Container]
+Image={{ loki_image }}
+ContainerName=loki-{{ loki_instance_name }}
+
+# Per-instance Quadlet-managed volume for log storage (local or s3 bind-mount).
+Volume=loki-{{ loki_instance_name }}.volume:/loki:Z
+# Per-instance rendered config file (read-only inside the container).
+Volume={{ loki_config_dir_base }}/{{ loki_instance_name }}/loki.yaml:/etc/loki/loki.yaml:ro,Z
+
+# Ports bound to localhost only. Disabled by default because Traefik reaches
+# Loki over the container network. Set loki_publish_ports: true to expose
+# Loki directly on the host loopback for co-located tooling (e.g. Alloy).
+{% if loki_publish_ports | bool %}
+PublishPort=127.0.0.1:{{ loki_http_port }}:3100
+PublishPort=127.0.0.1:{{ loki_grpc_port }}:9095
+{% endif %}
+
+Exec=-config.file=/etc/loki/loki.yaml
+
+# Traefik routing labels — subdomain per instance, TLS terminated at Traefik.
+# Router and service names include the instance name to prevent label
+# collisions across instances. loadbalancer.server.port=3100 is the
+# container-internal HTTP port — Traefik communicates with Loki over plain HTTP.
+Label=traefik.enable=true
+Label=traefik.http.routers.loki-{{ loki_instance_name }}.rule=Host(`{{ loki_instance_name }}.loki.{{ loki_traefik_domain }}`)
+Label=traefik.http.routers.loki-{{ loki_instance_name }}.entrypoints={{ loki_traefik_entrypoint }}
+Label=traefik.http.routers.loki-{{ loki_instance_name }}.tls=true
+Label=traefik.http.services.loki-{{ loki_instance_name }}.loadbalancer.server.port=3100
+
+[Service]
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

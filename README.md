@@ -2,7 +2,7 @@
 
 Rootless Podman/Quadlet deployment of **Grafana Loki** (monolithic mode) for short-lived developer lab environments.
 
-Each lab host runs one or more Loki instances managed by `systemd` via Quadlet. A single instantiated unit template (`loki@.container`) serves all instances — no per-instance unit file is needed. Logs are ingested by Grafana Alloy (out of scope). Storage is configurable between a local Podman volume and an S3-backed volume via `s3fs`.
+Each lab host runs one or more Loki instances managed by `systemd` via Quadlet. For each instance the deployer renders a dedicated Quadlet container unit (`loki-<instance>.container` → `loki-<instance>.service`) — the systemd instantiated-unit pattern is intentionally **not** used because Quadlet cannot resolve the `%i` specifier in `Volume=` lines at generator time. Logs are ingested by Grafana Alloy (out of scope). Storage is configurable between a local Podman volume and an S3-backed volume via `s3fs`.
 
 **Pinned image version:** `docker.io/grafana/loki:3.5.0`
 
@@ -58,10 +58,12 @@ bash scripts/deploy.sh
 | `loki_instance_name` | `LOKI_INSTANCE_NAME` | Yes | — | Unique instance identifier. Must match `^[a-z0-9][a-z0-9-]*[a-z0-9]$`. |
 | `loki_storage_backend` | `LOKI_STORAGE_BACKEND` | Yes | `local` | `local` or `s3`. |
 | `loki_s3_mount_path` | `LOKI_S3_MOUNT_PATH` | If `s3` | — | Absolute path where s3fs has mounted the S3 bucket. |
-| `loki_http_port` | `LOKI_HTTP_PORT` | No | `3100` | Loki HTTP port (container-internal only, not published to host). |
-| `loki_grpc_port` | `LOKI_GRPC_PORT` | No | `9095` | Loki gRPC port (container-internal only, not published to host). |
+| `loki_publish_ports` | `LOKI_PUBLISH_PORTS` | No | `false` | If `true`, publish `loki_http_port` / `loki_grpc_port` on `127.0.0.1`. Default is Traefik-only access via the container network. |
+| `loki_http_port` | `LOKI_HTTP_PORT` | No | `3100` | Loki HTTP port (only applied when `loki_publish_ports` / `LOKI_PUBLISH_PORTS` is `true`). |
+| `loki_grpc_port` | `LOKI_GRPC_PORT` | No | `9095` | Loki gRPC port (only applied when `loki_publish_ports` / `LOKI_PUBLISH_PORTS` is `true`). |
 | `loki_retention_period` | `LOKI_RETENTION_PERIOD` | No | `168h` | Log retention window (Go duration string). |
 | `loki_traefik_domain` | `LOKI_TRAEFIK_DOMAIN` | Yes | — | Base domain. Instance reachable at `https://<name>.loki.<domain>` via Traefik. |
+| `loki_traefik_entrypoint` | `LOKI_TRAEFIK_ENTRYPOINT` | No | `websecure` | Traefik entrypoint name used in the router labels. |
 | `loki_image` | `LOKI_IMAGE` | No | `docker.io/grafana/loki:3.5.0` | Fully-qualified image. Never `latest`. |
 | `loki_config_dir_base` | `LOKI_CONFIG_DIR_BASE` | No | `~/.config/loki` | Host base directory for rendered configs. |
 | — | `LOKI_READY_TIMEOUT_SECONDS` | No | `180` | Seconds to wait for the `podman exec` readiness probe before dumping diagnostics and failing. |
@@ -113,7 +115,7 @@ LOKI_INSTANCE_NAME=lab-42  LOKI_STORAGE_BACKEND=local LOKI_TRAEFIK_DOMAIN=exampl
 LOKI_INSTANCE_NAME=lab-43  LOKI_STORAGE_BACKEND=local LOKI_TRAEFIK_DOMAIN=example.internal bash scripts/deploy.sh
 ```
 
-Both instances share the single `loki@.container` unit template. Traefik routes by subdomain (`lab-42.loki.example.internal`, `lab-43.loki.example.internal`). No port differentiation is needed.
+Both instances get their own rendered unit file (`loki-lab-42.container`, `loki-lab-43.container`) and their own `loki-<name>.service`. Traefik routes by subdomain (`lab-42.loki.example.internal`, `lab-43.loki.example.internal`). No port differentiation is needed.
 
 ---
 
@@ -130,7 +132,7 @@ CI passes on Podman 4.9.3 on the GitHub Actions runner. This does **not** guaran
 
 - `[Container]` section with `Label=`, `Volume=`, `PublishPort=`, `Exec=`
 - `[Service]` restart directives
-- Instantiated unit templates (`loki@.container` → `loki@<name>.service`)
+- Concrete per-instance container units (`loki-<name>.container` → `loki-<name>.service`)
 
 If you encounter compatibility issues on a Podman 4.4 system, open an issue with `podman --version` and `podman info` output.
 

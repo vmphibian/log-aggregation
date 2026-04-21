@@ -6,9 +6,9 @@
   connection: local
   gather_facts: false
   tasks:
-    - name: Stop loki@molecule-test.service
+    - name: Stop loki-molecule-test.service
       ansible.builtin.systemd:
-        name: "loki@molecule-test.service"
+        name: "loki-molecule-test.service"
         state: stopped
         scope: user
       failed_when: false
