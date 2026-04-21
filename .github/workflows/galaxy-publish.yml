@@ -31,7 +31,7 @@ jobs:
             "https://x-access-token:${GALAXY_SYNC_TOKEN}@github.com/mattgagliardi/ansible-role-loki_lab.git" \
             /tmp/galaxy-target
 
-          rsync -av --delete \
+          rsync -avc --delete \
             --exclude='.git' \
             ansible/roles/loki_lab/ /tmp/galaxy-target/
 
