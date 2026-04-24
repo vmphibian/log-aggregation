@@ -27,6 +27,7 @@ After=network-online.target
 [Container]
 Image=${LOKI_IMAGE}
 ContainerName=loki-${LOKI_INSTANCE_NAME}
+Network=${LOKI_PODMAN_NETWORK}
 
 # Per-instance Podman volume (created by deploy.sh before the unit is started).
 Volume=loki-${LOKI_INSTANCE_NAME}:/loki:Z
@@ -49,7 +50,7 @@ Exec=-config.file=/etc/loki/loki.yaml
 Label=traefik.enable=true
 Label=traefik.http.routers.loki-${LOKI_INSTANCE_NAME}.rule=Host(`${LOKI_INSTANCE_NAME}.loki.${LOKI_TRAEFIK_DOMAIN}`)
 Label=traefik.http.routers.loki-${LOKI_INSTANCE_NAME}.entrypoints=${LOKI_TRAEFIK_ENTRYPOINT}
-Label=traefik.http.routers.loki-${LOKI_INSTANCE_NAME}.tls=true
+${LOKI_TLS_LABEL_LINE}
 Label=traefik.http.services.loki-${LOKI_INSTANCE_NAME}.loadbalancer.server.port=3100
 
 [Service]

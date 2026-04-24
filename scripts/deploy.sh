@@ -29,6 +29,10 @@ LOKI_RETENTION_PERIOD="${LOKI_RETENTION_PERIOD:-168h}"
 LOKI_IMAGE="${LOKI_IMAGE:-docker.io/grafana/loki:3.5.0}"
 LOKI_CONFIG_DIR_BASE="${LOKI_CONFIG_DIR_BASE:-${HOME}/.config/loki}"
 LOKI_TRAEFIK_ENTRYPOINT="${LOKI_TRAEFIK_ENTRYPOINT:-websecure}"
+# Podman network the container attaches to. Defaults to "podman" (the built-in
+# bridge network). Set to a shared network name when Traefik runs in a named
+# network and needs to reach Loki via container DNS.
+LOKI_PODMAN_NETWORK="${LOKI_PODMAN_NETWORK:-podman}"
 # When true, render PublishPort= directives binding Loki to 127.0.0.1. When
 # false (default), Traefik reaches Loki over the container network only.
 LOKI_PUBLISH_PORTS="${LOKI_PUBLISH_PORTS:-false}"
@@ -139,8 +143,19 @@ else
   LOKI_PUBLISHPORT_HTTP_LINE=""
   LOKI_PUBLISHPORT_GRPC_LINE=""
 fi
+
+# Emit the Traefik tls=true label only for non-web entrypoints (same logic as
+# the Ansible j2 template). The 'web' entrypoint is plain HTTP — TLS labels
+# are meaningless there and can confuse Traefik's ACME resolver.
+if [[ "${LOKI_TRAEFIK_ENTRYPOINT}" != "web" ]]; then
+  LOKI_TLS_LABEL_LINE="Label=traefik.http.routers.loki-${LOKI_INSTANCE_NAME}.tls=true"
+else
+  LOKI_TLS_LABEL_LINE=""
+fi
+
 export LOKI_INSTANCE_NAME LOKI_IMAGE LOKI_CONFIG_DIR_BASE LOKI_TRAEFIK_DOMAIN \
-       LOKI_TRAEFIK_ENTRYPOINT LOKI_PUBLISHPORT_HTTP_LINE LOKI_PUBLISHPORT_GRPC_LINE
+       LOKI_TRAEFIK_ENTRYPOINT LOKI_PODMAN_NETWORK \
+       LOKI_PUBLISHPORT_HTTP_LINE LOKI_PUBLISHPORT_GRPC_LINE LOKI_TLS_LABEL_LINE
 
 echo "==> Rendering Quadlet unit for instance ${LOKI_INSTANCE_NAME}..."
 envsubst < "${REPO_ROOT}/quadlet/loki.container.tpl" > "${QUADLET_DEST}"

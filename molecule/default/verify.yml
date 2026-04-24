@@ -11,6 +11,8 @@
   gather_facts: true
   vars:
     loki_instance_name: "molecule-test"
+    loki_traefik_entrypoint: "websecure"
+    loki_podman_network: "podman"
   tasks:
     - name: Wait for Loki readiness (internal check)
       ansible.builtin.command:
@@ -44,6 +46,13 @@
     - name: Parse container inspect output
       ansible.builtin.set_fact:
         _labels: "{{ (_inspect.stdout | from_json)[0]['Config']['Labels'] }}"
+        _networks: "{{ (_inspect.stdout | from_json)[0]['NetworkSettings']['Networks'] }}"
+
+    - name: Assert container is attached to the expected Podman network
+      ansible.builtin.assert:
+        that:
+          - "loki_podman_network in _networks"
+        fail_msg: "Container is not attached to network '{{ loki_podman_network }}'."
 
     - name: Assert traefik.enable=true label is present
       ansible.builtin.assert:
@@ -54,7 +63,7 @@
     - name: Assert Traefik router rule label is correct
       ansible.builtin.assert:
         that:
-          - "_labels['traefik.http.routers.loki-molecule-test.rule'] == \"Host(`molecule-test.loki.test.internal`)\""
+          - '_labels[''traefik.http.routers.loki-molecule-test.rule''] == "Host(`molecule-test.loki.test.internal`)"'
         fail_msg: "Traefik router rule label is incorrect or missing."
 
     - name: Assert Traefik entrypoints=websecure label is present
@@ -63,11 +72,19 @@
           - "_labels['traefik.http.routers.loki-molecule-test.entrypoints'] == 'websecure'"
         fail_msg: "Traefik entrypoints label is incorrect or missing."
 
-    - name: Assert Traefik tls=true label is present
+    - name: Assert Traefik tls=true label is present (non-web entrypoints only)
       ansible.builtin.assert:
         that:
           - "_labels['traefik.http.routers.loki-molecule-test.tls'] == 'true'"
         fail_msg: "Traefik tls label is incorrect or missing."
+      when: loki_traefik_entrypoint != 'web'
+
+    - name: Assert Traefik tls label is absent for web entrypoint
+      ansible.builtin.assert:
+        that:
+          - "'traefik.http.routers.loki-molecule-test.tls' not in _labels"
+        fail_msg: "Traefik tls label should not be present for the 'web' entrypoint."
+      when: loki_traefik_entrypoint == 'web'
 
     - name: Assert Traefik loadbalancer port label is correct
       ansible.builtin.assert:
