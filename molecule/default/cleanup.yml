@@ -1,26 +1,24 @@
 ---
 # cleanup.yml — Tear down the Molecule test instance cleanly.
+# Delegates unit file and config removal to the role's teardown.yml task.
+# The Podman test volume is also removed here (test data is disposable).
 
 - name: Cleanup
   hosts: localhost
   connection: local
-  gather_facts: false
+  gather_facts: true
   tasks:
-    - name: Stop loki-molecule-test.service
-      ansible.builtin.systemd:
-        name: "loki-molecule-test.service"
-        state: stopped
-        scope: user
-      failed_when: false
+    - name: Run role teardown for molecule-test instance
+      ansible.builtin.import_role:
+        name: loki_lab
+        tasks_from: teardown.yml
+      vars:
+        loki_instance_name: "molecule-test"
+        loki_config_dir_base: "{{ lookup('env', 'HOME') }}/.config/loki"
+        loki_teardown: true
 
-    - name: Remove Podman volume loki-molecule-test
+    - name: Remove Podman volume loki-molecule-test (test data only)
       containers.podman.podman_volume:
         name: "loki-molecule-test"
-        state: absent
-      failed_when: false
-
-    - name: Remove rendered config directory
-      ansible.builtin.file:
-        path: "{{ lookup('env', 'HOME') }}/.config/loki/molecule-test"
         state: absent
       failed_when: false
