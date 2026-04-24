@@ -1,0 +1,50 @@
+---
+# verify.yml — post-deploy smoke checks
+# Runs after service.yml on every execution, not just first deploy.
+
+- name: "Gather systemd service facts: loki-{{ loki_instance_name }}"
+  ansible.builtin.systemd:
+    name: "loki-{{ loki_instance_name }}.service"
+    scope: user
+  register: _verify_svc_facts
+  changed_when: false
+
+- name: Assert service is active
+  ansible.builtin.assert:
+    that:
+      - _verify_svc_facts.status.ActiveState == "active"
+    fail_msg: "loki-{{ loki_instance_name }}.service is not active: {{ _verify_svc_facts.status.ActiveState }}"
+    success_msg: "Service is active"
+
+- name: Stat container unit file
+  ansible.builtin.stat:
+    path: "{{ ansible_user_dir }}/.config/containers/systemd/loki-{{ loki_instance_name }}.container"
+  register: _verify_container_stat
+
+- name: Stat volume unit file
+  ansible.builtin.stat:
+    path: "{{ ansible_user_dir }}/.config/containers/systemd/loki-{{ loki_instance_name }}.volume"
+  register: _verify_volume_stat
+
+- name: Stat loki.yaml config file
+  ansible.builtin.stat:
+    path: "{{ loki_config_dir_base }}/{{ loki_instance_name }}/loki.yaml"
+  register: _verify_config_stat
+
+- name: Assert all unit and config files are present
+  ansible.builtin.assert:
+    that:
+      - _verify_container_stat.stat.exists
+      - _verify_volume_stat.stat.exists
+      - _verify_config_stat.stat.exists
+    fail_msg: "One or more required files are missing after deployment"
+    success_msg: "All unit and config files present"
+
+- name: Verify Loki is reachable inside the container
+  ansible.builtin.command:
+    cmd: >
+      podman exec loki-{{ loki_instance_name }}
+      wget -qO- http://localhost:3100/ready
+  register: _verify_ready
+  changed_when: false
+  failed_when: _verify_ready.rc != 0
