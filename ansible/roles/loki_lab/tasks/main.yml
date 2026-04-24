@@ -1,20 +1,40 @@
 ---
+- name: Teardown instance
+  ansible.builtin.import_tasks: teardown.yml
+  tags: [teardown]
+  when: loki_teardown | bool
+
 - name: Preflight checks
   ansible.builtin.import_tasks: preflight.yml
   tags: [preflight]
+  when: not (loki_teardown | bool)
+
+- name: Configure user linger and storage
+  ansible.builtin.import_tasks: user.yml
+  tags: [user]
+  when: not (loki_teardown | bool)
 
 - name: Manage Podman volume
   ansible.builtin.import_tasks: volume.yml
   tags: [volume]
+  when: not (loki_teardown | bool)
 
 - name: Render Loki configuration
   ansible.builtin.import_tasks: config.yml
   tags: [config]
+  when: not (loki_teardown | bool)
 
 - name: Install Quadlet unit template
   ansible.builtin.import_tasks: quadlet.yml
   tags: [quadlet]
+  when: not (loki_teardown | bool)
 
 - name: Enable and start service
   ansible.builtin.import_tasks: service.yml
   tags: [service]
+  when: not (loki_teardown | bool)
+
+- name: Post-deploy smoke checks
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]
+  when: not (loki_teardown | bool)

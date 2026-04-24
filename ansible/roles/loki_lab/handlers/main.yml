@@ -1,20 +1,21 @@
 ---
 # Handlers fire after all tasks in a play complete (or when flushed).
 # Ordering matters: daemon-reload must run before restart.
+# Tasks notify by the listen: string, not the handler name.
 
 - name: Systemd daemon-reload (user)
   ansible.builtin.systemd:
     daemon_reload: true
     scope: user
-  listen: Systemd daemon-reload (user)
+  listen: "loki daemon-reload"
 
 - name: Restart loki instance
   ansible.builtin.systemd:
     name: "loki-{{ loki_instance_name }}.service"
     state: restarted
     scope: user
-  listen: Restart loki instance
+  listen: "loki restart"
   # Ensure daemon-reload has run before restarting, in case the unit file changed.
   # Ansible executes handlers in the order they are notified; tasks/quadlet.yml
-  # notifies "systemd daemon-reload (user)" before tasks/config.yml notifies
-  # "restart loki instance", so ordering is naturally correct.
+  # notifies "loki daemon-reload" before tasks/config.yml notifies "loki restart",
+  # so ordering is naturally correct.

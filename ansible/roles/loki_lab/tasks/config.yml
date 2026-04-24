@@ -14,4 +14,4 @@
     src: loki.yaml.j2
     dest: "{{ loki_config_dir_base }}/{{ loki_instance_name }}/loki.yaml"
     mode: "0644"
-  notify: Restart loki instance
+  notify: "loki restart"

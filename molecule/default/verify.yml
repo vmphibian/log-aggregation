@@ -25,6 +25,42 @@
       until: _loki_ready.rc == 0
       changed_when: false
 
+    - name: "Gather systemd service facts: loki-molecule-test"
+      ansible.builtin.systemd:
+        name: "loki-molecule-test.service"
+        scope: user
+      register: _verify_svc_facts
+      changed_when: false
+
+    - name: Assert service is active
+      ansible.builtin.assert:
+        that:
+          - _verify_svc_facts.status.ActiveState == "active"
+        fail_msg: "loki-molecule-test.service is not active: {{ _verify_svc_facts.status.ActiveState }}"
+
+    - name: Stat container unit file
+      ansible.builtin.stat:
+        path: "{{ lookup('env', 'HOME') }}/.config/containers/systemd/loki-molecule-test.container"
+      register: _verify_container_stat
+
+    - name: Stat volume unit file
+      ansible.builtin.stat:
+        path: "{{ lookup('env', 'HOME') }}/.config/containers/systemd/loki-molecule-test.volume"
+      register: _verify_volume_stat
+
+    - name: Stat loki.yaml config file
+      ansible.builtin.stat:
+        path: "{{ lookup('env', 'HOME') }}/.config/loki/molecule-test/loki.yaml"
+      register: _verify_config_stat
+
+    - name: Assert all unit and config files are present
+      ansible.builtin.assert:
+        that:
+          - _verify_container_stat.stat.exists
+          - _verify_volume_stat.stat.exists
+          - _verify_config_stat.stat.exists
+        fail_msg: "One or more required files are missing after deployment"
+
     - name: Assert Loki container is running
       ansible.builtin.command:
         cmd: podman ps --format "{{ '{{' }}.Names{{ '}}' }}"

@@ -1,0 +1,34 @@
+---
+# user.yml — enable systemd linger and initialise Podman storage.
+# Must run before volume.yml and quadlet.yml so that the Podman
+# storage graph exists before Quadlet tries to create volume units.
+
+- name: Check if linger is already enabled for {{ ansible_user_id }}
+  ansible.builtin.stat:
+    path: "/var/lib/systemd/linger/{{ ansible_user_id }}"
+  register: _linger_stat
+
+- name: Enable linger for {{ ansible_user_id }}
+  ansible.builtin.command:
+    cmd: "loginctl enable-linger {{ ansible_user_id }}"
+  changed_when: not _linger_stat.stat.exists
+  when: not _linger_stat.stat.exists
+
+- name: Ensure Loki config base directory exists
+  ansible.builtin.file:
+    path: "{{ loki_config_dir_base }}"
+    state: directory
+    mode: "0755"
+
+- name: Ensure Quadlet unit directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/.config/containers/systemd"
+    state: directory
+    mode: "0750"
+
+- name: Initialise Podman user storage (prevents first-run race on volume unit creation)
+  ansible.builtin.command:
+    cmd: podman info
+  register: _podman_info_result
+  changed_when: false
+  failed_when: _podman_info_result.rc != 0
