@@ -17,4 +17,4 @@
     mode: "0640"
   # changed_when is driven by the template diff (default template module behaviour).
   # A second instance deployment will not report changed if the file is identical.
-  notify: Systemd daemon-reload (user)
+  notify: "loki daemon-reload"
