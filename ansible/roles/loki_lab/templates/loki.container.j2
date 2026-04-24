@@ -27,6 +27,7 @@ Requires=loki-{{ loki_instance_name }}-volume.service
 [Container]
 Image={{ loki_image }}
 ContainerName=loki-{{ loki_instance_name }}
+Network={{ loki_podman_network }}
 
 # Per-instance Quadlet-managed volume for log storage (local or s3 bind-mount).
 Volume=loki-{{ loki_instance_name }}.volume:/loki:Z
@@ -50,7 +51,9 @@ Exec=-config.file=/etc/loki/loki.yaml
 Label=traefik.enable=true
 Label=traefik.http.routers.loki-{{ loki_instance_name }}.rule=Host(`{{ loki_instance_name }}.loki.{{ loki_traefik_domain }}`)
 Label=traefik.http.routers.loki-{{ loki_instance_name }}.entrypoints={{ loki_traefik_entrypoint }}
+{% if loki_traefik_entrypoint != 'web' %}
 Label=traefik.http.routers.loki-{{ loki_instance_name }}.tls=true
+{% endif %}
 Label=traefik.http.services.loki-{{ loki_instance_name }}.loadbalancer.server.port=3100
 
 [Service]

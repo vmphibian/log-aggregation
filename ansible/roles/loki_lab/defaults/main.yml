@@ -16,6 +16,11 @@ loki_instance_name: "{{ lab_instance_name | default('') }}"
 loki_storage_backend: "local"
 
 # ── Networking ────────────────────────────────────────────────────────────────
+# Name of a pre-existing Podman network the container should attach to.
+# Defaults to "podman" (the built-in bridge network). Set this to the name of a
+# shared network (e.g. one managed by Traefik) when reverse-proxy discovery is needed.
+loki_podman_network: "podman"
+
 # Whether to publish Loki's HTTP and gRPC ports on the host loopback.
 # Disabled by default: Traefik reaches Loki over the container network, so
 # host ports are not required. Set to true if co-located tooling (e.g.
