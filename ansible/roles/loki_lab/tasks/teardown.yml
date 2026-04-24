@@ -1,0 +1,39 @@
+---
+# teardown.yml — remove instance unit files and rendered config.
+# IMPORTANT: Named Podman volumes are NEVER deleted by this role.
+# Volume data is always preserved; remove it manually if needed.
+
+- name: "Stop and disable user scope service: loki-{{ loki_instance_name }}"
+  ansible.builtin.systemd:
+    name: "loki-{{ loki_instance_name }}.service"
+    state: stopped
+    enabled: false
+    scope: user
+  failed_when: false
+
+- name: Remove container Quadlet unit file
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/.config/containers/systemd/loki-{{ loki_instance_name }}.container"
+    state: absent
+  notify: "loki daemon-reload"
+
+- name: Remove volume Quadlet unit file
+  # Removes the Quadlet unit file only — named volume data is NEVER deleted by this role
+  ansible.builtin.file:
+    path: "{{ ansible_user_dir }}/.config/containers/systemd/loki-{{ loki_instance_name }}.volume"
+    state: absent
+  notify: "loki daemon-reload"
+
+- name: Remove rendered loki.yaml config file
+  ansible.builtin.file:
+    path: "{{ loki_config_dir_base }}/{{ loki_instance_name }}/loki.yaml"
+    state: absent
+
+- name: Remove per-instance config directory (only if empty)
+  ansible.builtin.file:
+    path: "{{ loki_config_dir_base }}/{{ loki_instance_name }}"
+    state: absent
+  failed_when: false
+
+- name: Flush handlers (ensures daemon-reload runs before teardown completes)
+  ansible.builtin.meta: flush_handlers
