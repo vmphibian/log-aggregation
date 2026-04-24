@@ -29,11 +29,10 @@
     path: "{{ loki_config_dir_base }}/{{ loki_instance_name }}/loki.yaml"
     state: absent
 
-- name: Remove per-instance config directory (only if empty)
+- name: Remove per-instance config directory
   ansible.builtin.file:
     path: "{{ loki_config_dir_base }}/{{ loki_instance_name }}"
     state: absent
-  failed_when: false
 
 - name: Flush handlers (ensures daemon-reload runs before teardown completes)
   ansible.builtin.meta: flush_handlers
