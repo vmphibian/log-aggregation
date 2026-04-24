@@ -3,6 +3,10 @@
   ansible.builtin.import_tasks: preflight.yml
   tags: [preflight]
 
+- name: Configure user linger and storage
+  ansible.builtin.import_tasks: user.yml
+  tags: [user]
+
 - name: Manage Podman volume
   ansible.builtin.import_tasks: volume.yml
   tags: [volume]
